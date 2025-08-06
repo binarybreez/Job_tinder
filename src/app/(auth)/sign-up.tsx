@@ -109,6 +109,12 @@ export default function SignUpScreen() {
             <Text>Sign in</Text>
           </Link>
         </View>
+          <Link href="/employer">
+            <Text>Go To Employer Dash</Text>
+          </Link>
+          <Link href="/seeker">
+            <Text>Go To Seeker Dash</Text>
+          </Link>
       </View>
     </SafeAreaView>
   )
