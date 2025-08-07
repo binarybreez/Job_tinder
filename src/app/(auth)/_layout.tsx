@@ -1,14 +1,12 @@
 // app/(auth)/_layout.tsx
-import { Redirect, Stack } from 'expo-router';
-import { useAuth } from '@clerk/clerk-expo';
+import { useAuth } from "@clerk/clerk-expo";
+import { Stack,Redirect } from "expo-router";
 
 export default function AuthRoutesLayout() {
-  const { isSignedIn } = useAuth();
-
-  if (isSignedIn) {
-    return <Redirect href="/" />;
+  const {isSignedIn} = useAuth()
+  if(isSignedIn){
+    return <Redirect href={"/(protected)/seeker"} />
   }
-
   return (
     <Stack>
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
