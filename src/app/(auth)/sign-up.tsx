@@ -10,18 +10,17 @@ export default function SignUpScreen() {
 
   const [emailAddress, setEmailAddress] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [phoneNumber, setphoneNumber] = React.useState("");
   const [username, setUsername] = React.useState("");
 
   const [pendingVerification, setPendingVerification] = React.useState(false);
   const [emailcode, setEmailCode] = React.useState("");
-  const [phonecode, setPhoneCode] = React.useState("");
+  // const [phonecode, setPhoneCode] = React.useState("");
 
   // Handle submission of sign-up form
   const onSignUpPress = async () => {
     if (!isLoaded) return;
 
-    console.log(emailAddress, password, username, phoneNumber);
+    console.log(emailAddress, password, username);
 
     // Start sign-up process using email and password provided
     try {
@@ -29,12 +28,10 @@ export default function SignUpScreen() {
         emailAddress,
         password,
         username,
-        phoneNumber,
       });
 
       // Send user an email with verification code
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      await signUp.preparePhoneNumberVerification();
 
       // Set 'pendingVerification' to true to display second form
       // and capture OTP code
@@ -56,18 +53,13 @@ export default function SignUpScreen() {
         code: emailcode,
       });
       console.log(`email verify : ${emailVerify}`);
-      const phoneVerify = await signUp.attemptPhoneNumberVerification({
-        code: phonecode,
-      });
-      console.log(`phone verify : ${phoneVerify}`);
 
       // If verification was completed, set the session to active
       // and redirect the user
       const isEmailVerified = emailVerify?.status === "complete";
-      const isPhoneVerified = phoneVerify?.status === "complete";
-      if (isEmailVerified && isPhoneVerified) {
+      if (isEmailVerified) {
         await setActive({ session: emailVerify.createdSessionId });
-        router.replace("/(protected)/seeker");
+        router.replace("/(protected)/seeker/Role");
       } else {
         // If the status is not complete, check why. User may need to
         // complete further steps.
@@ -93,17 +85,6 @@ export default function SignUpScreen() {
               value={emailcode}
               placeholder="Enter your verification code"
               onChangeText={(code) => setEmailCode(code)}
-            />
-          </View>
-          <View>
-            <Text className="font-bold text-[18px] text-center text-3xl">
-              Verify your Phone
-            </Text>
-            <TextInput
-              className="px-2 py-1 border-2 rounded-3xl text-lg tracking-widest"
-              value={phonecode}
-              placeholder="Enter your verification code"
-              onChangeText={(code) => setPhoneCode(code)}
             />
           </View>
           <TouchableOpacity
@@ -141,12 +122,6 @@ export default function SignUpScreen() {
           placeholder="Enter Username"
           onChangeText={(username) => setUsername(username)}
         />
-        <TextInput
-          className="border-2 rounded-3xl border-gray-300 px-3 font-semibold text-[15px] mb-4"
-          value={phoneNumber}
-          placeholder="Enter Phone Number"
-          onChangeText={(phoneNumber) => setphoneNumber(phoneNumber)}
-        />
         <TouchableOpacity
           onPress={onSignUpPress}
           className="flex items-center justify-center"
@@ -163,12 +138,6 @@ export default function SignUpScreen() {
             <Text>Sign in</Text>
           </Link>
         </View>
-        <Link href="/employer">
-          <Text>Go To Employer Dash</Text>
-        </Link>
-        <Link href="/seeker">
-          <Text>Go To Seeker Dash</Text>
-        </Link>
       </View>
     </SafeAreaView>
   );

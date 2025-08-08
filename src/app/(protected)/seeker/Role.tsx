@@ -1,8 +1,15 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import React from "react";
+import { useRouter } from "expo-router";
 
 const Role = () => {
-  async function handleRoleSubmission(role: string) {}
+  const router = useRouter();
+  async function handleRoleSubmission(role: string) {
+    if (role === "EMPLOYER") {
+      router.push("/(protected)/employer");
+    }
+    router.push("/(protected)/seeker");
+  }
   return (
     <View className="h-[80%] w-[92%] mx-auto flex items-center justify-center border-2 rounded-3xl gap-8">
       <Text className="font-bold text-3xl">Tell Us About Yourself</Text>
