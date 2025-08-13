@@ -134,6 +134,7 @@ const SeekerProfile = () => {
         setSelectedFile(file);
       }
     } catch (error) {
+      console.log(error)
       showAlert('Error', 'Failed to pick document');
     }
   };

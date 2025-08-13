@@ -49,7 +49,7 @@ const Role = () => {
           disabled={loading}
         >
           <Text className="text-center font-bold text-xl text-blue-700">
-            I'm an Employer
+            I&apos;m an Employer
           </Text>
           <Text className="text-center text-sm text-gray-600 mt-1">
             Looking to hire talent
@@ -62,7 +62,7 @@ const Role = () => {
           disabled={loading}
         >
           <Text className="text-center font-bold text-xl text-green-700">
-            I'm a Job Seeker
+            I&apos;m a Job Seeker
           </Text>
           <Text className="text-center text-sm text-gray-600 mt-1">
             Looking for opportunities

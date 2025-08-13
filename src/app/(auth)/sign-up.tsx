@@ -59,7 +59,7 @@ export default function SignUpScreen() {
       const isEmailVerified = emailVerify?.status === "complete";
       if (isEmailVerified) {
         await setActive({ session: emailVerify.createdSessionId });
-        router.replace("/(protected)/seeker/Role");
+        router.replace("/(protected)/Role");
       } else {
         // If the status is not complete, check why. User may need to
         // complete further steps.
