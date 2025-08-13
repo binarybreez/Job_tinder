@@ -1,43 +1,48 @@
+import { AntDesign, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { AntDesign, Feather, Ionicons } from "@expo/vector-icons";
 
 const EmployerLayout = () => {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "black",
+        tabBarActiveTintColor: "#2563eb",
+        tabBarInactiveTintColor: "#6b7280",
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
-          bottom: 8, // ⬆️ moves tab bar up from bottom
+          bottom: 8,
           left: 16,
           right: 16,
           borderRadius: 16,
           height: 70,
           backgroundColor: "#fff",
-          elevation: 5, // shadow for Android
-          shadowColor: "#000", // shadow for iOS
+          elevation: 5,
+          shadowColor: "#000",
           shadowOpacity: 0.1,
           shadowOffset: { width: 0, height: 5 },
           shadowRadius: 10,
+          paddingTop: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          headerTitle: "Reddit",
-          title: "Home",
-          headerTintColor: "#FF5700",
+          headerTitle: "Dashboard",
+          title: "Dashboard",
           tabBarIcon: ({ color }) => (
-            <AntDesign name="home" size={24} color={color} />
+            <MaterialIcons name="dashboard" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
-          title: "Create",
+          title: "Post Job",
           tabBarIcon: ({ color }) => (
             <AntDesign name="plus" size={24} color={color} />
           ),
@@ -46,13 +51,9 @@ const EmployerLayout = () => {
       <Tabs.Screen
         name="EmployerJobs"
         options={{
-          title: "Jobs",
+          title: "My Jobs",
           tabBarIcon: ({ color }) => (
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={24}
-              color={color}
-            />
+            <Ionicons name="briefcase-outline" size={24} color={color} />
           ),
         }}
       />
@@ -61,7 +62,7 @@ const EmployerLayout = () => {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => (
-            <Feather name="users" size={24} color={color} />
+            <Feather name="user" size={24} color={color} />
           ),
         }}
       />
