@@ -6,7 +6,7 @@ const index = () => {
   return (
       <View>
       <Text className='font-bold text-2xl'>Hinge Jobs</Text>
-      <Link href={"/(protected)/seeker/Role"}>To the Role Section</Link>
+      <Link href={"/(protected)/Role"}>To the Role Section</Link>
       </View>
   )
 }
