@@ -1,345 +1,447 @@
-import { AntDesign, MaterialIcons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useAuth } from "@clerk/clerk-expo";
+import { AntDesign, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
+  FlatList,
+  Modal,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-type EmploymentType = 'full_time' | 'part_time' | 'contract' | 'internship';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface JobFormData {
   title: string;
   description: string;
   requirements: string[];
   responsibilities: string[];
-  employment_type: EmploymentType;
-  salary_min: string;
-  salary_max: string;
-  currency: string;
-  is_salary_public: boolean;
-  city: string;
-  state: string;
-  country: string;
-  is_remote: boolean;
+  employment_type: "full_time" | "part_time" | "contract" | "internship";
+  salary: {
+    min: number;
+    max: number;
+    currency: string;
+    is_public: boolean;
+  };
+  location: {
+    city: string;
+    state: string;
+    country: string;
+    remote: boolean;
+  };
   skills_required: string[];
   benefits: string[];
-  expires_in_days: number;
+  expires_at: Date;
 }
 
 const CreateJob = () => {
   const router = useRouter();
+  const { userId } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showEmploymentModal, setShowEmploymentModal] = useState(false);
+  
   const [formData, setFormData] = useState<JobFormData>({
-    title: '',
-    description: '',
-    requirements: [''],
-    responsibilities: [''],
-    employment_type: 'full_time',
-    salary_min: '',
-    salary_max: '',
-    currency: 'USD',
-    is_salary_public: true,
-    city: '',
-    state: '',
-    country: '',
-    is_remote: false,
-    skills_required: [''],
-    benefits: [''],
-    expires_in_days: 30,
+    title: "",
+    description: "",
+    requirements: [],
+    responsibilities: [],
+    employment_type: "full_time",
+    salary: {
+      min: 0,
+      max: 0,
+      currency: "USD",
+      is_public: true,
+    },
+    location: {
+      city: "",
+      state: "",
+      country: "USA",
+      remote: false,
+    },
+    skills_required: [],
+    benefits: [],
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+  });
+
+  const [tempInputs, setTempInputs] = useState({
+    requirement: "",
+    responsibility: "",
+    skill: "",
+    benefit: "",
   });
 
   const employmentTypes = [
-    { label: 'Full Time', value: 'full_time' },
-    { label: 'Part Time', value: 'part_time' },
-    { label: 'Contract', value: 'contract' },
-    { label: 'Internship', value: 'internship' },
+    { label: "Full Time", value: "full_time" },
+    { label: "Part Time", value: "part_time" },
+    { label: "Contract", value: "contract" },
+    { label: "Internship", value: "internship" },
   ];
 
-  const addArrayItem = (field: keyof JobFormData, item: string = '') => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: [...(prev[field] as string[]), item]
-    }));
-  };
-
-  const updateArrayItem = (field: keyof JobFormData, index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: (prev[field] as string[]).map((item, i) => i === index ? value : item)
-    }));
-  };
-
-  const removeArrayItem = (field: keyof JobFormData, index: number) => {
-    if ((formData[field] as string[]).length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        [field]: (prev[field] as string[]).filter((_, i) => i !== index)
-      }));
-    }
-  };
-
-  const validateForm = (): boolean => {
+  const handleSubmit = async () => {
+    // Validation
     if (!formData.title.trim()) {
-      Alert.alert('Error', 'Job title is required');
-      return false;
+      Alert.alert("Error", "Job title is required");
+      return;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Error', 'Job description is required');
-      return false;
+      Alert.alert("Error", "Job description is required");
+      return;
     }
-    if (formData.requirements.every(req => !req.trim())) {
-      Alert.alert('Error', 'At least one requirement is needed');
-      return false;
+    if (!formData.location.city.trim()) {
+      Alert.alert("Error", "City is required");
+      return;
     }
-    if (formData.responsibilities.every(resp => !resp.trim())) {
-      Alert.alert('Error', 'At least one responsibility is needed');
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
 
     setLoading(true);
     try {
-      // Filter out empty strings from arrays
-      const cleanedData = {
+      const jobData = {
         ...formData,
-        requirements: formData.requirements.filter(req => req.trim()),
-        responsibilities: formData.responsibilities.filter(resp => resp.trim()),
-        skills_required: formData.skills_required.filter(skill => skill.trim()),
-        benefits: formData.benefits.filter(benefit => benefit.trim()),
+        employer_id: userId,
+        is_active: true,
+        posted_at: new Date(),
       };
 
-      console.log('Submitting job:', cleanedData);
-      // TODO: Replace with actual API call
-      // await createJob(cleanedData);
-
+      // Mock success
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       Alert.alert(
-        'Success',
-        'Job posted successfully!',
-        [{ text: 'OK', onPress: () => router.back() }]
+        "Success",
+        "Job posted successfully!",
+        [
+          {
+            text: "OK",
+            onPress: () => router.push("/(protected)/employer/EmployerJobs"),
+          },
+        ]
       );
     } catch (error) {
-      console.error('Error creating job:', error);
-      Alert.alert('Error', 'Failed to create job. Please try again.');
+      console.error("Error creating job:", error);
+      Alert.alert("Error", "Failed to create job posting");
     } finally {
       setLoading(false);
     }
   };
 
-  const ArrayInput = ({ 
-    label, 
+  const addToList = (field: 'requirements' | 'responsibilities' | 'skills_required' | 'benefits', inputKey: string) => {
+    const value = tempInputs[inputKey as keyof typeof tempInputs].trim();
+    if (value) {
+      setFormData(prev => ({
+        ...prev,
+        [field]: [...prev[field], value],
+      }));
+      setTempInputs(prev => ({ ...prev, [inputKey]: "" }));
+    }
+  };
+
+  const removeFromList = (field: 'requirements' | 'responsibilities' | 'skills_required' | 'benefits', index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }));
+  };
+
+  const ListInput = ({ 
+    title, 
     field, 
+    inputKey, 
     placeholder 
-  }: { 
-    label: string; 
-    field: keyof JobFormData; 
-    placeholder: string; 
+  }: {
+    title: string;
+    field: 'requirements' | 'responsibilities' | 'skills_required' | 'benefits';
+    inputKey: string;
+    placeholder: string;
   }) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.label}>{label}</Text>
-      {(formData[field] as string[]).map((item, index) => (
-        <View key={index} style={styles.arrayInputRow}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder={`${placeholder} ${index + 1}`}
-            value={item}
-            onChangeText={(text) => updateArrayItem(field, index, text)}
-            multiline={field === 'responsibilities' || field === 'requirements'}
-          />
-          <TouchableOpacity
-            onPress={() => removeArrayItem(field, index)}
-            style={styles.removeButton}
-          >
-            <AntDesign name="close" size={16} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
-      ))}
-      <TouchableOpacity
-        onPress={() => addArrayItem(field)}
-        style={styles.addButton}
-      >
-        <AntDesign name="plus" size={16} color="#3b82f6" />
-        <Text style={styles.addButtonText}>Add {label.slice(0, -1)}</Text>
-      </TouchableOpacity>
+    <View style={styles.listInputContainer}>
+      <Text style={styles.label}>{title}</Text>
+      <View style={styles.addItemContainer}>
+        <TextInput
+          style={styles.addItemInput}
+          placeholder={placeholder}
+          value={tempInputs[inputKey as keyof typeof tempInputs]}
+          onChangeText={(text) => setTempInputs(prev => ({ ...prev, [inputKey]: text }))}
+          multiline
+        />
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => addToList(field, inputKey)}
+        >
+          <AntDesign name="plus" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.listContainer}>
+        {formData[field].map((item, index) => (
+          <View key={index} style={styles.listItem}>
+            <Text style={styles.listItemText}>{item}</Text>
+            <TouchableOpacity
+              onPress={() => removeFromList(field, index)}
+              style={styles.removeButton}
+            >
+              <AntDesign name="close" size={16} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <AntDesign name="arrowleft" size={24} color="#1F2937" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create Job Posting</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <MaterialIcons name="arrow-back" size={24} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.title}>Post New Job</Text>
-            <View style={{ width: 24 }} />
+        {/* Basic Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Basic Information</Text>
+          
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Job Title *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. Senior Software Engineer"
+              value={formData.title}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
+            />
           </View>
 
-          <View style={styles.form}>
-            {/* Basic Info */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Basic Information</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Title *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Senior React Developer"
-                  value={formData.title}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
-                />
-              </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Job Description *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Describe the role, company culture, and what you're looking for..."
+              value={formData.description}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+              multiline
+              numberOfLines={6}
+            />
+          </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Job Description *</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Describe the role, company culture, what you're looking for..."
-                  multiline
-                  numberOfLines={6}
-                  value={formData.description}
-                  onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Employment Type</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={formData.employment_type}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, employment_type: value }))}
-                    style={styles.picker}
-                  >
-                    {employmentTypes.map((type) => (
-                      <Picker.Item key={type.value} label={type.label} value={type.value} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-            </View>
-
-            {/* Requirements & Responsibilities */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Job Details</Text>
-              
-              <ArrayInput
-                label="Requirements"
-                field="requirements"
-                placeholder="Enter requirement"
-              />
-
-              <ArrayInput
-                label="Responsibilities"
-                field="responsibilities"
-                placeholder="Enter responsibility"
-              />
-
-              <ArrayInput
-                label="Required Skills"
-                field="skills_required"
-                placeholder="Enter skill"
-              />
-            </View>
-
-            {/* Salary & Benefits */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Compensation</Text>
-              
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>Min Salary</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="50000"
-                    keyboardType="numeric"
-                    value={formData.salary_min}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, salary_min: text }))}
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.label}>Max Salary</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="80000"
-                    keyboardType="numeric"
-                    value={formData.salary_max}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, salary_max: text }))}
-                  />
-                </View>
-              </View>
-
-              <ArrayInput
-                label="Benefits"
-                field="benefits"
-                placeholder="Enter benefit"
-              />
-            </View>
-
-            {/* Location */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Location</Text>
-              
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>City</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="New York"
-                    value={formData.city}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, city: text }))}
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.label}>State</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="NY"
-                    value={formData.state}
-                    onChangeText={(text) => setFormData(prev => ({ ...prev, state: text }))}
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.checkboxRow}
-                onPress={() => setFormData(prev => ({ ...prev, is_remote: !prev.is_remote }))}
-              >
-                <View style={[styles.checkbox, formData.is_remote && styles.checkboxChecked]}>
-                  {formData.is_remote && <MaterialIcons name="check" size={16} color="#fff" />}
-                </View>
-                <Text style={styles.checkboxLabel}>Remote work allowed</Text>
-              </TouchableOpacity>
-            </View>
-
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Employment Type</Text>
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
+              style={styles.dropdown}
+              onPress={() => setShowEmploymentModal(true)}
             >
-              <Text style={styles.submitButtonText}>
-                {loading ? 'Posting Job...' : 'Post Job'}
+              <Text style={styles.dropdownText}>
+                {employmentTypes.find(type => type.value === formData.employment_type)?.label}
               </Text>
+              <AntDesign name="down" size={16} color="#6B7280" />
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+
+        {/* Location */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>City *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="New York"
+                value={formData.location.city}
+                onChangeText={(text) => setFormData(prev => ({
+                  ...prev,
+                  location: { ...prev.location, city: text }
+                }))}
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>State</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="NY"
+                value={formData.location.state}
+                onChangeText={(text) => setFormData(prev => ({
+                  ...prev,
+                  location: { ...prev.location, state: text }
+                }))}
+              />
+            </View>
+          </View>
+
+          <View style={styles.switchContainer}>
+            <Text style={styles.label}>Remote Work Available</Text>
+            <Switch
+              value={formData.location.remote}
+              onValueChange={(value) => setFormData(prev => ({
+                ...prev,
+                location: { ...prev.location, remote: value }
+              }))}
+              trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
+              thumbColor={formData.location.remote ? "#fff" : "#f4f3f4"}
+            />
+          </View>
+        </View>
+
+        {/* Salary */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Salary Range</Text>
+          
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Minimum ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="50000"
+                value={formData.salary.min.toString()}
+                onChangeText={(text) => setFormData(prev => ({
+                  ...prev,
+                  salary: { ...prev.salary, min: parseInt(text) || 0 }
+                }))}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Maximum ($)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="80000"
+                value={formData.salary.max.toString()}
+                onChangeText={(text) => setFormData(prev => ({
+                  ...prev,
+                  salary: { ...prev.salary, max: parseInt(text) || 0 }
+                }))}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+
+          <View style={styles.switchContainer}>
+            <Text style={styles.label}>Make Salary Public</Text>
+            <Switch
+              value={formData.salary.is_public}
+              onValueChange={(value) => setFormData(prev => ({
+                ...prev,
+                salary: { ...prev.salary, is_public: value }
+              }))}
+              trackColor={{ false: "#D1D5DB", true: "#3B82F6" }}
+              thumbColor={formData.salary.is_public ? "#fff" : "#f4f3f4"}
+            />
+          </View>
+        </View>
+
+        {/* Expiration Date */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Job Posting Expiration</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <MaterialIcons name="date-range" size={24} color="#3B82F6" />
+            <Text style={styles.dateButtonText}>
+              {formData.expires_at.toLocaleDateString()}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Lists */}
+        <ListInput
+          title="Requirements"
+          field="requirements"
+          inputKey="requirement"
+          placeholder="Add a job requirement..."
+        />
+
+        <ListInput
+          title="Responsibilities"
+          field="responsibilities"
+          inputKey="responsibility"
+          placeholder="Add a responsibility..."
+        />
+
+        <ListInput
+          title="Required Skills"
+          field="skills_required"
+          inputKey="skill"
+          placeholder="Add a required skill..."
+        />
+
+        <ListInput
+          title="Benefits"
+          field="benefits"
+          inputKey="benefit"
+          placeholder="Add a benefit..."
+        />
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <AntDesign name="loading1" size={20} color="#fff" />
+          ) : (
+            <Text style={styles.submitButtonText}>Post Job</Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Employment Type Modal */}
+      <Modal
+        visible={showEmploymentModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmploymentModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Employment Type</Text>
+            <FlatList
+              data={employmentTypes}
+              keyExtractor={(item) => item.value}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setFormData(prev => ({ ...prev, employment_type: item.value as any }));
+                    setShowEmploymentModal(false);
+                  }}
+                >
+                  <Text style={styles.modalOptionText}>{item.label}</Text>
+                  {formData.employment_type === item.value && (
+                    <AntDesign name="check" size={20} color="#3B82F6" />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={formData.expires_at}
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              setFormData(prev => ({ ...prev, expires_at: selectedDate }));
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -347,32 +449,39 @@ const CreateJob = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#F8FAFC",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#E5E7EB",
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
   },
-  form: {
-    padding: 20,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   section: {
-    marginBottom: 32,
+    backgroundColor: "#fff",
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#1F2937",
     marginBottom: 16,
   },
   inputGroup: {
@@ -380,95 +489,159 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#fff",
   },
   textArea: {
     height: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+  dropdown: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  picker: {
-    height: 50,
-  },
-  arrayInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  removeButton: {
-    marginLeft: 8,
-    padding: 8,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#eff6ff',
+    borderColor: "#D1D5DB",
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
   },
-  addButtonText: {
-    marginLeft: 8,
-    color: '#3b82f6',
-    fontWeight: '600',
+  dropdownText: {
+    fontSize: 16,
+    color: "#1F2937",
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
+  switchContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  dateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: "#fff",
   },
-  checkboxChecked: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-  },
-  checkboxLabel: {
+  dateButtonText: {
+    marginLeft: 8,
     fontSize: 16,
-    color: '#374151',
+    color: "#1F2937",
+  },
+  listInputContainer: {
+    backgroundColor: "#fff",
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  addItemContainer: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  addItemInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 16,
+    backgroundColor: "#fff",
+    marginRight: 8,
+  },
+  addButton: {
+    backgroundColor: "#3B82F6",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  listContainer: {
+    gap: 8,
+  },
+  listItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  listItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#374151",
+  },
+  removeButton: {
+    padding: 4,
   },
   submitButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3B82F6",
+    marginHorizontal: 20,
+    marginTop: 24,
+    paddingVertical: 16,
     borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   submitButtonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: "#9CA3AF",
   },
   submitButtonText: {
-    color: '#fff',
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
+    minWidth: 280,
+    maxHeight: 400,
+  },
+  modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: "#374151",
   },
 });
 

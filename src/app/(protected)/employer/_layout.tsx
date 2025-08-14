@@ -1,12 +1,12 @@
-import { AntDesign, Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
 const EmployerLayout = () => {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#2563eb",
-        tabBarInactiveTintColor: "#6b7280",
+        tabBarActiveTintColor: "#3B82F6",
+        tabBarInactiveTintColor: "#6B7280",
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
@@ -16,35 +16,46 @@ const EmployerLayout = () => {
           borderRadius: 16,
           height: 70,
           backgroundColor: "#fff",
-          elevation: 5,
+          elevation: 8,
           shadowColor: "#000",
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.15,
           shadowOffset: { width: 0, height: 5 },
-          shadowRadius: 10,
-          paddingTop: 10,
+          shadowRadius: 12,
+          borderTopWidth: 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 8,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          headerTitle: "Dashboard",
           title: "Dashboard",
-          tabBarIcon: ({ color }) => (
-            <MaterialIcons name="dashboard" size={24} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <AntDesign 
+              name="home" 
+              size={focused ? 26 : 24} 
+              color={color} 
+            />
           ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
-          title: "Post Job",
-          tabBarIcon: ({ color }) => (
-            <AntDesign name="plus" size={24} color={color} />
+          title: "Create Job",
+          tabBarIcon: ({ color, focused }) => (
+            <AntDesign 
+              name="plus" 
+              size={focused ? 26 : 24} 
+              color={color} 
+            />
           ),
         }}
       />
@@ -52,8 +63,12 @@ const EmployerLayout = () => {
         name="EmployerJobs"
         options={{
           title: "My Jobs",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="briefcase-outline" size={24} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialIcons
+              name="work-outline"
+              size={focused ? 26 : 24}
+              color={color}
+            />
           ),
         }}
       />
@@ -61,8 +76,12 @@ const EmployerLayout = () => {
         name="EmployerProfile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <Feather name="user" size={24} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Feather 
+              name="user" 
+              size={focused ? 26 : 24} 
+              color={color} 
+            />
           ),
         }}
       />

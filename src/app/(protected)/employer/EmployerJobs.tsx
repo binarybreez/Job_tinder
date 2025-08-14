@@ -1,17 +1,20 @@
-import { AntDesign, Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useAuth } from "@clerk/clerk-expo";
+import { AntDesign, MaterialIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
+  Linking,
   Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Job {
   _id: string;
@@ -21,157 +24,171 @@ interface Job {
   location: {
     city: string;
     state: string;
-    is_remote: boolean;
+    remote: boolean;
   };
   salary: {
     min: number;
     max: number;
-    currency: string;
+    is_public: boolean;
   };
-  applications_count: number;
-  new_applications: number;
   is_active: boolean;
   posted_at: string;
   expires_at: string;
+  applicants_count: number;
 }
 
-interface Application {
+interface Applicant {
   _id: string;
-  applicant_name: string;
-  applicant_email: string;
-  status: 'pending' | 'reviewed' | 'shortlisted' | 'rejected';
+  name: string;
+  email: string;
+  phone: string;
+  skills: string[];
+  resume_url: string;
   applied_at: string;
-  resume_url?: string;
 }
 
 const EmployerJobs = () => {
   const router = useRouter();
+  const { userId } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [showApplications, setShowApplications] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'inactive' | 'all'>('active');
+  const [showJobDetails, setShowJobDetails] = useState(false);
+  const [showApplicants, setShowApplicants] = useState(false);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
 
-  const loadJobs = async () => {
+  const fetchJobs = async () => {
     try {
-      setLoading(true);
-      // Mock data - replace with actual API call
+      // Replace with your API endpoint
+      // const response = await fetch(`/api/employer/${userId}/jobs`);
+      // const data = await response.json();
+      
+      // Mock data for demo
       const mockJobs: Job[] = [
         {
-          _id: '1',
-          title: 'Senior React Developer',
-          description: 'We are looking for an experienced React developer...',
-          employment_type: 'full_time',
-          location: { city: 'New York', state: 'NY', is_remote: false },
-          salary: { min: 80000, max: 120000, currency: 'USD' },
-          applications_count: 34,
-          new_applications: 5,
+          _id: "1",
+          title: "Senior React Native Developer",
+          description: "We are looking for an experienced React Native developer to join our mobile team...",
+          employment_type: "full_time",
+          location: { city: "San Francisco", state: "CA", remote: true },
+          salary: { min: 90000, max: 120000, is_public: true },
           is_active: true,
-          posted_at: '2024-01-15',
-          expires_at: '2024-02-15',
+          posted_at: "2024-01-15T10:00:00Z",
+          expires_at: "2024-02-15T10:00:00Z",
+          applicants_count: 24,
         },
         {
-          _id: '2',
-          title: 'UI/UX Designer',
-          description: 'Join our design team to create amazing user experiences...',
-          employment_type: 'full_time',
-          location: { city: 'San Francisco', state: 'CA', is_remote: true },
-          salary: { min: 70000, max: 100000, currency: 'USD' },
-          applications_count: 28,
-          new_applications: 8,
-          is_active: true,
-          posted_at: '2024-01-10',
-          expires_at: '2024-02-10',
-        },
-        {
-          _id: '3',
-          title: 'Product Manager',
-          description: 'Lead product development and strategy...',
-          employment_type: 'full_time',
-          location: { city: 'Austin', state: 'TX', is_remote: false },
-          salary: { min: 90000, max: 130000, currency: 'USD' },
-          applications_count: 19,
-          new_applications: 3,
+          _id: "2",
+          title: "UI/UX Designer",
+          description: "Join our design team to create amazing user experiences...",
+          employment_type: "full_time",
+          location: { city: "New York", state: "NY", remote: false },
+          salary: { min: 70000, max: 95000, is_public: false },
           is_active: false,
-          posted_at: '2024-01-05',
-          expires_at: '2024-02-05',
+          posted_at: "2024-01-10T10:00:00Z",
+          expires_at: "2024-02-10T10:00:00Z",
+          applicants_count: 18,
+        },
+        {
+          _id: "3",
+          title: "Backend Engineer",
+          description: "Looking for a Python/Django developer to work on our API...",
+          employment_type: "contract",
+          location: { city: "Austin", state: "TX", remote: true },
+          salary: { min: 80000, max: 110000, is_public: true },
+          is_active: true,
+          posted_at: "2024-01-20T10:00:00Z",
+          expires_at: "2024-02-20T10:00:00Z",
+          applicants_count: 12,
         },
       ];
+      
       setJobs(mockJobs);
     } catch (error) {
-      console.error('Error loading jobs:', error);
+      console.error("Error fetching jobs:", error);
+      Alert.alert("Error", "Failed to load jobs");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const loadApplications = async (jobId: string) => {
+  const fetchApplicants = async (jobId: string) => {
+    setLoadingApplicants(true);
     try {
-      // Mock data - replace with actual API call
-      const mockApplications: Application[] = [
+      // Replace with your API endpoint
+      // const response = await fetch(`/api/jobs/${jobId}/applicants`);
+      // const data = await response.json();
+      
+      // Mock data for demo
+      const mockApplicants: Applicant[] = [
         {
-          _id: '1',
-          applicant_name: 'John Doe',
-          applicant_email: 'john.doe@email.com',
-          status: 'pending',
-          applied_at: '2024-01-20',
-          resume_url: 'https://example.com/resume1.pdf',
+          _id: "1",
+          name: "John Doe",
+          email: "john.doe@email.com",
+          phone: "+1 (555) 123-4567",
+          skills: ["React Native", "JavaScript", "TypeScript", "Node.js"],
+          resume_url: "https://example.com/resume1.pdf",
+          applied_at: "2024-01-16T10:00:00Z",
         },
         {
-          _id: '2',
-          applicant_name: 'Jane Smith',
-          applicant_email: 'jane.smith@email.com',
-          status: 'shortlisted',
-          applied_at: '2024-01-19',
-          resume_url: 'https://example.com/resume2.pdf',
+          _id: "2",
+          name: "Jane Smith",
+          email: "jane.smith@email.com",
+          phone: "+1 (555) 987-6543",
+          skills: ["React Native", "Swift", "Kotlin", "Firebase"],
+          resume_url: "https://example.com/resume2.pdf",
+          applied_at: "2024-01-17T14:30:00Z",
         },
         {
-          _id: '3',
-          applicant_name: 'Mike Johnson',
-          applicant_email: 'mike.johnson@email.com',
-          status: 'reviewed',
-          applied_at: '2024-01-18',
-          resume_url: 'https://example.com/resume3.pdf',
+          _id: "3",
+          name: "Mike Johnson",
+          email: "mike.johnson@email.com",
+          phone: "+1 (555) 456-7890",
+          skills: ["React Native", "Redux", "GraphQL", "AWS"],
+          resume_url: "https://example.com/resume3.pdf",
+          applied_at: "2024-01-18T09:15:00Z",
         },
       ];
-      setApplications(mockApplications);
+      
+      setApplicants(mockApplicants);
     } catch (error) {
-      console.error('Error loading applications:', error);
+      console.error("Error fetching applicants:", error);
+      Alert.alert("Error", "Failed to load applicants");
+    } finally {
+      setLoadingApplicants(false);
     }
   };
 
-  const toggleJobStatus = async (jobId: string, currentStatus: boolean) => {
-    try {
-      // TODO: Replace with actual API call
-      setJobs(prev => prev.map(job => 
-        job._id === jobId ? { ...job, is_active: !currentStatus } : job
-      ));
-      Alert.alert('Success', `Job ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-    } catch (error) {
-      console.error('Error toggling job status:', error);
-      Alert.alert('Error', 'Failed to update job status');
-    }
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchJobs();
   };
 
-  const deleteJob = async (jobId: string) => {
+  const toggleJobStatus = async (job: Job) => {
     Alert.alert(
-      'Delete Job',
-      'Are you sure you want to delete this job? This action cannot be undone.',
+      job.is_active ? "Deactivate Job" : "Activate Job",
+      `Are you sure you want to ${job.is_active ? "deactivate" : "activate"} this job posting?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: job.is_active ? "Deactivate" : "Activate",
+          style: job.is_active ? "destructive" : "default",
           onPress: async () => {
             try {
-              // TODO: Replace with actual API call
-              setJobs(prev => prev.filter(job => job._id !== jobId));
-              Alert.alert('Success', 'Job deleted successfully');
+              // API call to toggle job status
+              setJobs(prev => prev.map(j => 
+                j._id === job._id ? { ...j, is_active: !j.is_active } : j
+              ));
+              Alert.alert("Success", `Job ${job.is_active ? "deactivated" : "activated"} successfully`);
             } catch (error) {
-              console.error('Error deleting job:', error);
-              Alert.alert('Error', 'Failed to delete job');
+              Alert.alert("Error", "Failed to update job status");
             }
           },
         },
@@ -179,235 +196,309 @@ const EmployerJobs = () => {
     );
   };
 
-  const viewApplications = (job: Job) => {
+  const deleteJob = async (job: Job) => {
+    Alert.alert(
+      "Delete Job",
+      "Are you sure you want to delete this job posting? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // API call to delete job
+              setJobs(prev => prev.filter(j => j._id !== job._id));
+              Alert.alert("Success", "Job deleted successfully");
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete job");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openResume = (url: string) => {
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Error", "Unable to open resume");
+    });
+  };
+
+  const showJobDetailsModal = (job: Job) => {
     setSelectedJob(job);
-    loadApplications(job._id);
-    setShowApplications(true);
+    setShowJobDetails(true);
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadJobs();
-    setRefreshing(false);
+  const showApplicantsModal = (job: Job) => {
+    setSelectedJob(job);
+    fetchApplicants(job._id);
+    setShowApplicants(true);
   };
 
-  useEffect(() => {
-    loadJobs();
-  }, []);
-
-  const filteredJobs = jobs.filter(job => {
-    if (activeTab === 'active') return job.is_active;
-    if (activeTab === 'inactive') return !job.is_active;
-    return true;
-  });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return '#f59e0b';
-      case 'reviewed': return '#3b82f6';
-      case 'shortlisted': return '#10b981';
-      case 'rejected': return '#ef4444';
-      default: return '#6b7280';
-    }
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
   };
 
-  const getStatusBadgeStyle = (status: string) => ({
-    backgroundColor: getStatusColor(status) + '20',
-    borderColor: getStatusColor(status),
-    borderWidth: 1,
-  });
+  const formatSalary = (salary: Job['salary']) => {
+    if (!salary.is_public) return "Salary not disclosed";
+    return `$${salary.min.toLocaleString()} - $${salary.max.toLocaleString()}`;
+  };
 
   const JobCard = ({ job }: { job: Job }) => (
-    <View style={styles.jobCard}>
+    <View style={[styles.jobCard, !job.is_active && styles.inactiveJobCard]}>
       <View style={styles.jobHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.jobTitle} numberOfLines={1}>
-            {job.title}
-          </Text>
-          <Text style={styles.jobLocation}>
-            {job.location.city}, {job.location.state}
-            {job.location.is_remote && ' • Remote'}
-          </Text>
-          <Text style={styles.jobSalary}>
-            ${job.salary.min.toLocaleString()} - ${job.salary.max.toLocaleString()}
-          </Text>
+        <View style={styles.jobTitleContainer}>
+          <Text style={styles.jobTitle}>{job.title}</Text>
+          <View style={[styles.statusBadge, job.is_active ? styles.activeBadge : styles.inactiveBadge]}>
+            <Text style={[styles.statusText, job.is_active ? styles.activeText : styles.inactiveText]}>
+              {job.is_active ? "Active" : "Inactive"}
+            </Text>
+          </View>
         </View>
-        <View style={[styles.statusBadge, job.is_active ? styles.activeBadge : styles.inactiveBadge]}>
-          <Text style={[styles.statusText, job.is_active ? styles.activeText : styles.inactiveText]}>
-            {job.is_active ? 'Active' : 'Inactive'}
-          </Text>
-        </View>
+        <TouchableOpacity style={styles.menuButton}>
+          <MaterialIcons name="more-vert" size={20} color="#6B7280" />
+        </TouchableOpacity>
       </View>
+
+      <Text style={styles.jobLocation}>
+        {job.location.city}, {job.location.state} {job.location.remote && "• Remote"}
+      </Text>
+      
+      <Text style={styles.jobSalary}>{formatSalary(job.salary)}</Text>
+      
+      <Text style={styles.jobDescription} numberOfLines={2}>
+        {job.description}
+      </Text>
 
       <View style={styles.jobStats}>
         <View style={styles.statItem}>
-          <Ionicons name="people-outline" size={16} color="#6b7280" />
-          <Text style={styles.statText}>{job.applications_count} applicants</Text>
+          <MaterialIcons name="people" size={16} color="#6B7280" />
+          <Text style={styles.statText}>{job.applicants_count} applicants</Text>
         </View>
-        {job.new_applications > 0 && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>{job.new_applications} new</Text>
-          </View>
-        )}
+        <View style={styles.statItem}>
+          <MaterialIcons name="schedule" size={16} color="#6B7280" />
+          <Text style={styles.statText}>Expires {formatDate(job.expires_at)}</Text>
+        </View>
       </View>
 
       <View style={styles.jobActions}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.primaryAction]}
-          onPress={() => viewApplications(job)}
+          style={styles.actionButton}
+          onPress={() => showJobDetailsModal(job)}
         >
-          <MaterialIcons name="assignment" size={16} color="#fff" />
-          <Text style={styles.actionButtonText}>View Applications</Text>
+          <MaterialIcons name="visibility" size={18} color="#3B82F6" />
+          <Text style={styles.actionButtonText}>View Details</Text>
         </TouchableOpacity>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.iconButton, styles.editButton]}
-          onPress={() => router.push(`/employer/create?jobId=${job._id}`)}
-          >
-            <MaterialIcons name="edit" size={18} color="#3b82f6" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.iconButton, job.is_active ? styles.pauseButton : styles.playButton]}
-            onPress={() => toggleJobStatus(job._id, job.is_active)}
-          >
-            <MaterialIcons 
-              name={job.is_active ? "pause" : "play-arrow"} 
-              size={18} 
-              color={job.is_active ? "#f59e0b" : "#10b981"} 
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.iconButton, styles.deleteButton]}
-            onPress={() => deleteJob(job._id)}
-          >
-            <MaterialIcons name="delete" size={18} color="#ef4444" />
-          </TouchableOpacity>
-        </View>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => showApplicantsModal(job)}
+        >
+          <MaterialIcons name="people" size={18} color="#10B981" />
+          <Text style={[styles.actionButtonText, { color: "#10B981" }]}>
+            View Applicants ({job.applicants_count})
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => toggleJobStatus(job)}
+        >
+          <MaterialIcons 
+            name={job.is_active ? "pause" : "play-arrow"} 
+            size={18} 
+            color={job.is_active ? "#F59E0B" : "#10B981"} 
+          />
+          <Text style={[styles.actionButtonText, { color: job.is_active ? "#F59E0B" : "#10B981" }]}>
+            {job.is_active ? "Deactivate" : "Activate"}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => deleteJob(job)}
+        >
+          <MaterialIcons name="delete" size={18} color="#EF4444" />
+          <Text style={[styles.actionButtonText, { color: "#EF4444" }]}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
-  const ApplicationCard = ({ application }: { application: Application }) => (
-    <TouchableOpacity
-      style={styles.applicationCard}
-      onPress={() => {
-        setShowApplications(false);
-        router.push(`/employer/ApplicantReview?jobId=${selectedJob?._id}&applicationId=${application._id}` as any);
-      }}
-    >
-      <View style={styles.applicationHeader}>
-        <Text style={styles.applicantName}>{application.applicant_name}</Text>
-        <View style={[styles.statusBadge, getStatusBadgeStyle(application.status)]}>
-          <Text style={[styles.statusText, { color: getStatusColor(application.status) }]}>
-            {application.status}
-          </Text>
+  const ApplicantCard = ({ applicant }: { applicant: Applicant }) => (
+    <View style={styles.applicantCard}>
+      <View style={styles.applicantHeader}>
+        <View>
+          <Text style={styles.applicantName}>{applicant.name}</Text>
+          <Text style={styles.applicantEmail}>{applicant.email}</Text>
+          <Text style={styles.applicantPhone}>{applicant.phone}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.resumeButton}
+          onPress={() => openResume(applicant.resume_url)}
+        >
+          <MaterialIcons name="description" size={20} color="#3B82F6" />
+          <Text style={styles.resumeButtonText}>Resume</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.skillsContainer}>
+        <Text style={styles.skillsTitle}>Skills:</Text>
+        <View style={styles.skillsList}>
+          {applicant.skills.map((skill, index) => (
+            <View key={index} style={styles.skillTag}>
+              <Text style={styles.skillText}>{skill}</Text>
+            </View>
+          ))}
         </View>
       </View>
-      <Text style={styles.applicantEmail}>{application.applicant_email}</Text>
-      <Text style={styles.appliedDate}>Applied: {new Date(application.applied_at).toLocaleDateString()}</Text>
-    </TouchableOpacity>
+      
+      <Text style={styles.appliedDate}>
+        Applied on {formatDate(applicant.applied_at)}
+      </Text>
+    </View>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <AntDesign name="loading1" size={32} color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading your jobs...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Jobs</Text>
+        <Text style={styles.headerTitle}>My Jobs</Text>
         <TouchableOpacity
-          onPress={() => router.push('/employer/create')}
           style={styles.createButton}
+          onPress={() => router.push("/(protected)/employer/create")}
         >
-          <AntDesign name="plus" size={18} color="#fff" />
+          <AntDesign name="plus" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabContainer}>
-        {[
-          { key: 'active', label: 'Active' },
-          { key: 'inactive', label: 'Inactive' },
-          { key: 'all', label: 'All Jobs' },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-            onPress={() => setActiveTab(tab.key as any)}
-          >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.activeTabText]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
       <FlatList
-        data={filteredJobs}
+        data={jobs}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => <JobCard job={item} />}
-        contentContainerStyle={styles.jobsList}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="work-off" size={64} color="#9ca3af" />
-            <Text style={styles.emptyTitle}>No jobs found</Text>
-            <Text style={styles.emptyText}>
-              {activeTab === 'active' ? 'You have no active jobs' : 
-               activeTab === 'inactive' ? 'You have no inactive jobs' :
-               'Start by posting your first job'}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="work-off" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No jobs posted yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Start by creating your first job posting
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => router.push('/employer/create')}
+              onPress={() => router.push("/(protected)/employer/create")}
             >
-              <Text style={styles.emptyButtonText}>Post New Job</Text>
+              <Text style={styles.emptyButtonText}>Create Job</Text>
             </TouchableOpacity>
           </View>
-        )}
+        }
       />
 
-      {/* Applications Modal */}
+      {/* Job Details Modal */}
       <Modal
-        visible={showApplications}
+        visible={showJobDetails}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setShowJobDetails(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowApplications(false)}>
-              <MaterialIcons name="close" size={24} color="#111827" />
+            <Text style={styles.modalTitle}>Job Details</Text>
+            <TouchableOpacity onPress={() => setShowJobDetails(false)}>
+              <AntDesign name="close" size={24} color="#1F2937" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Applications</Text>
-            <View style={{ width: 24 }} />
           </View>
-
+          
           {selectedJob && (
-            <View style={styles.jobInfo}>
-              <Text style={styles.jobInfoTitle}>{selectedJob.title}</Text>
-              <Text style={styles.jobInfoText}>
-                {applications.length} total applications
+            <ScrollView style={styles.modalContent}>
+              <Text style={styles.detailTitle}>{selectedJob.title}</Text>
+              <Text style={styles.detailLocation}>
+                {selectedJob.location.city}, {selectedJob.location.state}
+                {selectedJob.location.remote && " • Remote"}
               </Text>
-            </View>
-          )}
-
-          <FlatList
-            data={applications}
-            keyExtractor={(item) => item._id}
-            renderItem={({ item }) => <ApplicationCard application={item} />}
-            contentContainerStyle={styles.applicationsList}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyState}>
-                <MaterialIcons name="assignment" size={64} color="#9ca3af" />
-                <Text style={styles.emptyTitle}>No applications yet</Text>
-                <Text style={styles.emptyText}>
-                  Applications will appear here when candidates apply
+              <Text style={styles.detailSalary}>{formatSalary(selectedJob.salary)}</Text>
+              
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Description</Text>
+                <Text style={styles.detailText}>{selectedJob.description}</Text>
+              </View>
+              
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Employment Type</Text>
+                <Text style={styles.detailText}>
+                  {selectedJob.employment_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                 </Text>
               </View>
-            )}
-          />
+              
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Posted</Text>
+                <Text style={styles.detailText}>{formatDate(selectedJob.posted_at)}</Text>
+              </View>
+              
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionTitle}>Expires</Text>
+                <Text style={styles.detailText}>{formatDate(selectedJob.expires_at)}</Text>
+              </View>
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
+
+      {/* Applicants Modal */}
+      <Modal
+        visible={showApplicants}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowApplicants(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Applicants {selectedJob && `(${selectedJob.applicants_count})`}
+            </Text>
+            <TouchableOpacity onPress={() => setShowApplicants(false)}>
+              <AntDesign name="close" size={24} color="#1F2937" />
+            </TouchableOpacity>
+          </View>
+          
+          {loadingApplicants ? (
+            <View style={styles.loadingContainer}>
+              <AntDesign name="loading1" size={32} color="#3B82F6" />
+              <Text style={styles.loadingText}>Loading applicants...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={applicants}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => <ApplicantCard applicant={item} />}
+              contentContainerStyle={styles.applicantsContainer}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <MaterialIcons name="people-outline" size={64} color="#D1D5DB" />
+                  <Text style={styles.emptyTitle}>No applicants yet</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Applications will appear here when candidates apply
+                  </Text>
+                </View>
+              }
+            />
+          )}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
@@ -417,290 +508,313 @@ const EmployerJobs = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#F8FAFC",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#E5E7EB",
   },
-  title: {
+  headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "bold",
+    color: "#1F2937",
   },
   createButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3B82F6",
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  tab: {
+  loadingContainer: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    justifyContent: "center",
+    alignItems: "center",
   },
-  activeTab: {
-    borderBottomColor: '#3b82f6',
-  },
-  tabText: {
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
+    color: "#6B7280",
   },
-  activeTabText: {
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  jobsList: {
-    padding: 20,
+  listContainer: {
+    paddingVertical: 16,
     paddingBottom: 100,
   },
   jobCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
+    elevation: 2,
+  },
+  inactiveJobCard: {
+    opacity: 0.7,
   },
   jobHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  jobTitleContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
   },
   jobTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  jobLocation: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  jobSalary: {
-    fontSize: 14,
-    color: '#10b981',
-    fontWeight: '600',
+    fontWeight: "600",
+    color: "#1F2937",
+    flex: 1,
+    marginRight: 8,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  activeBadge: {
-    backgroundColor: '#dcfce7',
-  },
-  inactiveBadge: {
-    backgroundColor: '#fef3c7',
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  activeText: {
-    color: '#16a34a',
-  },
-  inactiveText: {
-    color: '#d97706',
-  },
-  jobStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  newBadge: {
-    backgroundColor: '#fef2f2',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#fecaca',
   },
-  newBadgeText: {
+  activeBadge: {
+    backgroundColor: "#D1FAE5",
+  },
+  inactiveBadge: {
+    backgroundColor: "#FEF3C7",
+  },
+  statusText: {
     fontSize: 12,
-    color: '#dc2626',
-    fontWeight: '600',
+    fontWeight: "500",
+  },
+  activeText: {
+    color: "#065F46",
+  },
+  inactiveText: {
+    color: "#92400E",
+  },
+  menuButton: {
+    padding: 4,
+  },
+  jobLocation: {
+    fontSize: 14,
+    color: "#6B7280",
+    marginBottom: 4,
+  },
+  jobSalary: {
+    fontSize: 14,
+    color: "#059669",
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  jobDescription: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  jobStats: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 16,
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  statText: {
+    fontSize: 12,
+    color: "#6B7280",
   },
   jobActions: {
-    gap: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  primaryAction: {
-    backgroundColor: '#3b82f6',
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#3B82F6",
   },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  editButton: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#dbeafe',
-  },
-  pauseButton: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fed7aa',
-  },
-  playButton: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#bbf7d0',
-  },
-  deleteButton: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 64,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#374151",
     marginTop: 16,
     marginBottom: 8,
   },
-  emptyText: {
+  emptySubtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     marginBottom: 24,
-    lineHeight: 24,
   },
   emptyButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3B82F6",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   emptyButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#F8FAFC",
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#E5E7EB",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  jobInfo: {
-    padding: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  jobInfoTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#1F2937",
+  },
+  modalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  detailTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  detailLocation: {
+    fontSize: 16,
+    color: "#6B7280",
     marginBottom: 4,
   },
-  jobInfoText: {
+  detailSalary: {
+    fontSize: 16,
+    color: "#059669",
+    fontWeight: "500",
+    marginBottom: 24,
+  },
+  detailSection: {
+    marginBottom: 24,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  detailText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: "#6B7280",
+    lineHeight: 20,
   },
-  applicationsList: {
-    padding: 20,
+  applicantsContainer: {
+    paddingVertical: 16,
   },
-  applicationCard: {
-    backgroundColor: '#fff',
+  applicantCard: {
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
+    elevation: 2,
   },
-  applicationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  applicantHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   applicantName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111827',
-    flex: 1,
-    marginRight: 12,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 4,
   },
   applicantEmail: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
+    color: "#3B82F6",
+    marginBottom: 2,
+  },
+  applicantPhone: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+  resumeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EBF8FF",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  resumeButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#3B82F6",
+  },
+  skillsContainer: {
+    marginBottom: 12,
+  },
+  skillsTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  skillsList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  skillTag: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  skillText: {
+    fontSize: 12,
+    color: "#374151",
   },
   appliedDate: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: "#6B7280",
+    fontStyle: "italic",
   },
 });
 
