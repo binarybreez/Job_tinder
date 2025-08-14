@@ -1,6 +1,7 @@
-import { useAuth } from "@clerk/clerk-expo";
-import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -11,60 +12,55 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import axios from "axios";
 
 // Add your API base URL - you can store this in environment variables
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 interface ParsedResumeData {
   "Full Name"?: string;
-  "Email"?: string;
+  Email?: string;
   "Phone Number"?: string;
   "LinkedIn Profile"?: string;
-  "Skills"?: string[];
-  "Experience"?: Array<{
+  Skills?: string[];
+  Experience?: Array<{
     Company: string;
     Role: string;
     Duration: string;
     Description: string;
   }>;
-  "Education"?: Array<{
+  Education?: Array<{
     Degree: string;
     University: string;
     Year: string;
   }>;
-  "Certifications"?: string[];
-  "Projects"?: Array<{
+  Certifications?: string[];
+  Projects?: Array<{
     Name: string;
     Description: string;
   }>;
 }
 
 const SeekerProfile = () => {
-  const { signOut, userId, getToken } = useAuth();
+  const { signOut, userId } = useAuth();
   const router = useRouter();
   const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [clerkId, setClerkId] = useState('');
-  const [userRole, setUserRole] = useState('');
+  const [clerkId, setClerkId] = useState("");
+  const { user } = useUser();
+  const userRole = user?.unsafeMetadata?.role || "JOB_SEEKER";
   const [isUploading, setIsUploading] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedResumeData | null>(null);
-  const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
   // Set clerkId from authenticated user
   useEffect(() => {
     if (userId) {
       setClerkId(userId);
-      fetchUserProfile();
     }
   }, [userId]);
-
-  const roles = [
-    { label: 'Internship', value: 'internship' },
-    { label: 'Job', value: 'job' },
-  ];
 
   const showAlert = (title: string, message: string) => {
     Alert.alert(title, message);
@@ -73,121 +69,131 @@ const SeekerProfile = () => {
   // Fetch existing user profile
   const fetchUserProfile = async () => {
     try {
-      const token = await getToken();
-      const response = await fetch(`${API_BASE_URL}/users/me?clerk_id=${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await axios.get(
+        `${API_BASE_URL}/api/users/me?clerk_id=${userId}`
+      );
 
-      if (response.ok) {
-        const profile = await response.json();
+      if (response.status === 200) {
+        const profile = response.data;
         setUserProfile(profile);
         // If user already has parsed resume data, show it
         if (profile.skills || profile.experience) {
           const formattedData: ParsedResumeData = {
             "Full Name": profile.full_name,
-            "Email": profile.email,
+            Email: profile.email,
             "Phone Number": profile.phone,
             "LinkedIn Profile": profile.social_links?.linkedin,
-            "Skills": profile.skills,
-            "Experience": profile.experience?.map((exp: any) => ({
+            Skills: profile.skills,
+            Experience: profile.experience?.map((exp: any) => ({
               Company: exp.company,
               Role: exp.position,
               Duration: exp.duration,
-              Description: exp.description
+              Description: exp.description,
             })),
-            "Education": profile.education?.map((edu: any) => ({
+            Education: profile.education?.map((edu: any) => ({
               Degree: edu.degree,
               University: edu.institution,
-              Year: edu.year
+              Year: edu.year,
             })),
-            "Certifications": profile.certifications,
-            "Projects": profile.projects
+            Certifications: profile.certifications,
+            Projects: profile.projects,
           };
           setParsedData(formattedData);
         }
+      } else {
+        console.log(
+          "Failed to fetch user profile:",
+          response.status,
+          response.statusText
+        );
+        return;
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error("Error fetching user profile:", error);
     }
   };
 
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        type: [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ],
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
-        
+
         // Check file size (5MB limit to match backend)
         if (file.size && file.size > 5 * 1024 * 1024) {
-          showAlert('File too large', 'Please select a file smaller than 5MB');
+          showAlert("File too large", "Please select a file smaller than 5MB");
           return;
         }
-        
+
         setSelectedFile(file);
       }
     } catch (error) {
-      console.log(error)
-      showAlert('Error', 'Failed to pick document');
+      console.log(error);
+      showAlert("Error", "Failed to pick document");
     }
   };
 
   const handleUpload = async () => {
     if (!selectedFile || !clerkId || !userRole) {
-      showAlert('Missing Information', 'Please fill in all fields and select a file');
+      showAlert(
+        "Missing Information",
+        "Please fill in all fields and select a file"
+      );
       return;
     }
 
     setIsUploading(true);
 
     try {
-      const token = await getToken();
-      
+      //Read file as blob
+      const fileUri = selectedFile.uri;
+    const fileInfo = await FileSystem.getInfoAsync(selectedFile.uri);
+    if (!fileInfo.exists) throw new Error("File does not exist");
+
       // Create FormData for file upload
       const formData = new FormData();
-      formData.append('file', {
-        uri: selectedFile.uri,
-        type: selectedFile.mimeType || 'application/pdf',
+      formData.append("file", {
+        uri: fileUri,
+        type: selectedFile.mimeType || "application/pdf",
         name: selectedFile.name,
       } as any);
-      formData.append('clerk_id', clerkId);
-      formData.append('user_role', userRole);
+      formData.append("clerk_id", clerkId);
+      formData.append("user_role", "job_seeker");
 
-      const response = await fetch(`${API_BASE_URL}/users/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
+      const response = await fetch(
+      "https://e796782b3166.ngrok-free.app/api/users/upload",
+      {
+        method: "POST",
         body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Upload failed');
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
       }
+    );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Upload failed");
 
-      const result = await response.json();
-      
-      // Set the parsed data from the response
-      if (result.result) {
-        setParsedData(result.result);
+      if (data) {
+        setParsedData(data);
+        console.log(parsedData, "parsed data from upload");
       }
 
       // Refresh user profile to get updated data
       await fetchUserProfile();
 
-      showAlert('Success', 'Resume uploaded and parsed successfully!');
+      showAlert("Success", "Resume uploaded and parsed successfully!");
     } catch (error: any) {
-      console.error('Upload error:', error);
-      showAlert('Error', error.message || 'Failed to upload resume');
+      console.error("Upload error:", error);
+      showAlert("Error", error.message || "Failed to upload resume");
     } finally {
       setIsUploading(false);
     }
@@ -211,9 +217,13 @@ const SeekerProfile = () => {
   const renderExperienceItem = (exp: any, index: number) => (
     <View key={index} style={styles.experienceItem}>
       <Text style={styles.experienceTitle}>{exp.Role || exp.position}</Text>
-      <Text style={styles.experienceCompany}>{exp.Company || exp.company} • {exp.Duration || exp.duration}</Text>
+      <Text style={styles.experienceCompany}>
+        {exp.Company || exp.company} • {exp.Duration || exp.duration}
+      </Text>
       {(exp.Description || exp.description) && (
-        <Text style={styles.experienceDescription}>{exp.Description || exp.description}</Text>
+        <Text style={styles.experienceDescription}>
+          {exp.Description || exp.description}
+        </Text>
       )}
     </View>
   );
@@ -230,13 +240,18 @@ const SeekerProfile = () => {
   const renderProjectItem = (project: any, index: number) => (
     <View key={index} style={styles.projectItem}>
       <Text style={styles.projectName}>{project.Name || project.name}</Text>
-      <Text style={styles.projectDescription}>{project.Description || project.description}</Text>
+      <Text style={styles.projectDescription}>
+        {project.Description || project.description}
+      </Text>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTop}>
@@ -280,53 +295,25 @@ const SeekerProfile = () => {
             <View style={styles.chooseFileButton}>
               <Text style={styles.chooseFileText}>Choose File</Text>
             </View>
-            
+
             {selectedFile && (
               <View style={styles.selectedFile}>
                 <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
                 <Text style={styles.selectedFileSize}>
-                  {selectedFile.size ? (selectedFile.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'}
+                  {selectedFile.size
+                    ? (selectedFile.size / 1024 / 1024).toFixed(2) + " MB"
+                    : "Unknown size"}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
 
-          {/* Role Select */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Role</Text>
-            <TouchableOpacity
-              style={styles.selectInput}
-              onPress={() => setShowRoleDropdown(!showRoleDropdown)}
-            >
-              <Text style={[styles.selectText, !userRole && styles.placeholder]}>
-                {userRole ? roles.find(r => r.value === userRole)?.label : 'Select your role'}
-              </Text>
-              <Ionicons name="chevron-down" size={20} color="#6b7280" />
-            </TouchableOpacity>
-            
-            {showRoleDropdown && (
-              <View style={styles.dropdown}>
-                {roles.map((role) => (
-                  <TouchableOpacity
-                    key={role.value}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setUserRole(role.value);
-                      setShowRoleDropdown(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownText}>{role.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
           {/* Upload Button */}
           <TouchableOpacity
             style={[
               styles.uploadButton,
-              (!selectedFile || !userId || !userRole || isUploading) && styles.uploadButtonDisabled
+              (!selectedFile || !userId || !userRole || isUploading) &&
+                styles.uploadButtonDisabled,
             ]}
             onPress={handleUpload}
             disabled={!selectedFile || !userId || !userRole || isUploading}
@@ -338,7 +325,11 @@ const SeekerProfile = () => {
               </View>
             ) : (
               <View style={styles.uploadButtonContent}>
-                <Ionicons name="cloud-upload-outline" size={16} color="#ffffff" />
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={16}
+                  color="#ffffff"
+                />
                 <Text style={styles.uploadButtonText}>Upload Resume</Text>
               </View>
             )}
@@ -359,19 +350,29 @@ const SeekerProfile = () => {
             <View style={styles.parsedDataContainer}>
               <View style={styles.successIndicator}>
                 <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                <Text style={styles.successText}>Resume parsed successfully</Text>
+                <Text style={styles.successText}>
+                  Resume parsed successfully
+                </Text>
               </View>
 
               {/* Basic Information */}
               <View style={styles.dataSection}>
                 <Text style={styles.sectionTitle}>Basic Information</Text>
-                <Text style={styles.dataText}>Name: {parsedData["Full Name"]}</Text>
-                <Text style={styles.dataText}>Email: {parsedData["Email"]}</Text>
+                <Text style={styles.dataText}>
+                  Name: {parsedData["Full Name"]}
+                </Text>
+                <Text style={styles.dataText}>
+                  Email: {parsedData["Email"]}
+                </Text>
                 {parsedData["Phone Number"] && (
-                  <Text style={styles.dataText}>Phone: {parsedData["Phone Number"]}</Text>
+                  <Text style={styles.dataText}>
+                    Phone: {parsedData["Phone Number"]}
+                  </Text>
                 )}
                 {parsedData["LinkedIn Profile"] && (
-                  <Text style={styles.dataText}>LinkedIn: {parsedData["LinkedIn Profile"]}</Text>
+                  <Text style={styles.dataText}>
+                    LinkedIn: {parsedData["LinkedIn Profile"]}
+                  </Text>
                 )}
               </View>
 
@@ -386,38 +387,41 @@ const SeekerProfile = () => {
               )}
 
               {/* Experience */}
-              {parsedData["Experience"] && parsedData["Experience"].length > 0 && (
-                <View style={styles.dataSection}>
-                  <Text style={styles.sectionTitle}>Experience</Text>
-                  <View style={styles.experienceContainer}>
-                    {parsedData["Experience"].map(renderExperienceItem)}
+              {parsedData["Experience"] &&
+                parsedData["Experience"].length > 0 && (
+                  <View style={styles.dataSection}>
+                    <Text style={styles.sectionTitle}>Experience</Text>
+                    <View style={styles.experienceContainer}>
+                      {parsedData["Experience"].map(renderExperienceItem)}
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
 
               {/* Education */}
-              {parsedData["Education"] && parsedData["Education"].length > 0 && (
-                <View style={styles.dataSection}>
-                  <Text style={styles.sectionTitle}>Education</Text>
-                  <View style={styles.educationContainer}>
-                    {parsedData["Education"].map(renderEducationItem)}
+              {parsedData["Education"] &&
+                parsedData["Education"].length > 0 && (
+                  <View style={styles.dataSection}>
+                    <Text style={styles.sectionTitle}>Education</Text>
+                    <View style={styles.educationContainer}>
+                      {parsedData["Education"].map(renderEducationItem)}
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
 
               {/* Certifications */}
-              {parsedData["Certifications"] && parsedData["Certifications"].length > 0 && (
-                <View style={styles.dataSection}>
-                  <Text style={styles.sectionTitle}>Certifications</Text>
-                  <View style={styles.skillsContainer}>
-                    {parsedData["Certifications"].map((cert, index) => (
-                      <View key={index} style={styles.skillTag}>
-                        <Text style={styles.skillText}>{cert}</Text>
-                      </View>
-                    ))}
+              {parsedData["Certifications"] &&
+                parsedData["Certifications"].length > 0 && (
+                  <View style={styles.dataSection}>
+                    <Text style={styles.sectionTitle}>Certifications</Text>
+                    <View style={styles.skillsContainer}>
+                      {parsedData["Certifications"].map((cert, index) => (
+                        <View key={index} style={styles.skillTag}>
+                          <Text style={styles.skillText}>{cert}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
 
               {/* Projects */}
               {parsedData["Projects"] && parsedData["Projects"].length > 0 && (
@@ -431,8 +435,14 @@ const SeekerProfile = () => {
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color="#d1d5db" />
-              <Text style={styles.emptyStateText}>Upload a resume to see parsed data here</Text>
+              <Ionicons
+                name="document-text-outline"
+                size={48}
+                color="#d1d5db"
+              />
+              <Text style={styles.emptyStateText}>
+                Upload a resume to see parsed data here
+              </Text>
             </View>
           )}
         </View>
@@ -448,7 +458,7 @@ export default SeekerProfile;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   scrollView: {
     flex: 1,
@@ -456,46 +466,46 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
-    paddingTop: Platform.OS === 'ios' ? 20 : 20,
+    paddingTop: Platform.OS === "ios" ? 20 : 20,
   },
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 8,
-    width: '100%',
+    width: "100%",
   },
   headerTitleContainer: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   signOutIconButton: {
     padding: 8,
-    backgroundColor: '#fef2f2',
+    backgroundColor: "#fef2f2",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: "#fecaca",
   },
   mainTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "bold",
+    color: "#111827",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: "#6b7280",
+    textAlign: "center",
     paddingHorizontal: 20,
     lineHeight: 24,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -505,125 +515,125 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginLeft: 8,
   },
   cardDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: "#6b7280",
     marginBottom: 20,
     lineHeight: 20,
   },
   uploadArea: {
     borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderStyle: 'dashed',
+    borderColor: "#d1d5db",
+    borderStyle: "dashed",
     borderRadius: 12,
     padding: 32,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
-    backgroundColor: '#fafafa',
+    backgroundColor: "#fafafa",
   },
   uploadIcon: {
     width: 64,
     height: 64,
-    backgroundColor: '#dbeafe',
+    backgroundColor: "#dbeafe",
     borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
   },
   uploadTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 8,
   },
   uploadDescription: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: "#6b7280",
+    textAlign: "center",
     marginBottom: 8,
     lineHeight: 20,
   },
   uploadSubtext: {
     fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
+    color: "#9ca3af",
+    textAlign: "center",
     marginBottom: 16,
   },
   chooseFileButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
   chooseFileText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374751',
+    fontWeight: "500",
+    color: "#374751",
   },
   selectedFile: {
     marginTop: 16,
     padding: 12,
-    backgroundColor: '#ecfdf5',
+    backgroundColor: "#ecfdf5",
     borderWidth: 1,
-    borderColor: '#d1fae5',
+    borderColor: "#d1fae5",
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   selectedFileName: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#065f46',
+    fontWeight: "500",
+    color: "#065f46",
     marginBottom: 4,
   },
   selectedFileSize: {
     fontSize: 12,
-    color: '#059669',
+    color: "#059669",
   },
   inputGroup: {
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#374751',
+    fontWeight: "500",
+    color: "#374751",
     marginBottom: 8,
   },
   selectInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     padding: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
   },
   selectText: {
     fontSize: 14,
-    color: '#111827',
+    color: "#111827",
   },
   placeholder: {
-    color: '#9ca3af',
+    color: "#9ca3af",
   },
   dropdown: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     marginTop: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -635,44 +645,44 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: "#f3f4f6",
   },
   dropdownText: {
     fontSize: 14,
-    color: '#111827',
+    color: "#111827",
   },
   uploadButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
     borderRadius: 8,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
   uploadButtonDisabled: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: "#d1d5db",
   },
   uploadButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   uploadButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: 8,
   },
   parsedDataContainer: {
     maxHeight: 400,
   },
   successIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 20,
   },
   successText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#059669',
+    fontWeight: "500",
+    color: "#059669",
     marginLeft: 8,
   },
   dataSection: {
@@ -680,101 +690,101 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 8,
   },
   dataText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: "#6b7280",
     marginBottom: 4,
     lineHeight: 20,
   },
   skillsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   skillTag: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: "#dbeafe",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 16,
   },
   skillText: {
     fontSize: 12,
-    color: '#1e40af',
-    fontWeight: '500',
+    color: "#1e40af",
+    fontWeight: "500",
   },
   experienceContainer: {
     gap: 8,
   },
   experienceItem: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
     padding: 12,
     borderRadius: 8,
   },
   experienceTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
   },
   experienceCompany: {
     fontSize: 12,
-    color: '#6b7280',
+    color: "#6b7280",
     marginBottom: 4,
   },
   experienceDescription: {
     fontSize: 12,
-    color: '#374751',
+    color: "#374751",
     lineHeight: 16,
   },
   educationContainer: {
     gap: 8,
   },
   educationItem: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
     padding: 12,
     borderRadius: 8,
   },
   educationDegree: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
   },
   educationInstitution: {
     fontSize: 12,
-    color: '#6b7280',
+    color: "#6b7280",
   },
   projectContainer: {
     gap: 8,
   },
   projectItem: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
     padding: 12,
     borderRadius: 8,
   },
   projectName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
   },
   projectDescription: {
     fontSize: 12,
-    color: '#374751',
+    color: "#374751",
     lineHeight: 16,
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
   },
   emptyStateText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: "#9ca3af",
     marginTop: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
