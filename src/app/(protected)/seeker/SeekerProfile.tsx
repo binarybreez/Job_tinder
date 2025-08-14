@@ -169,7 +169,7 @@ const SeekerProfile = () => {
       formData.append("user_role", "job_seeker");
 
       const response = await fetch(
-      "https://e796782b3166.ngrok-free.app/api/users/upload",
+      `${API_BASE_URL}/api/users/upload`,
       {
         method: "POST",
         body: formData,
@@ -184,7 +184,7 @@ const SeekerProfile = () => {
 
       if (data) {
         setParsedData(data);
-        console.log(parsedData, "parsed data from upload");
+        console.log(data, "parsed data from upload");
       }
 
       // Refresh user profile to get updated data

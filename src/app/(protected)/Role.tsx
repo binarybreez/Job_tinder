@@ -1,12 +1,22 @@
 import { useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 
 const Role = () => {
   const router = useRouter();
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (user?.unsafeMetadata?.role) {
+      console.log(user?.unsafeMetadata?.role, "userRole");
+      if (user.unsafeMetadata.role === "employer") {
+        router.replace("/(protected)/employer");
+      } else {
+        router.replace("/(protected)/seeker");
+      }
+    }
+  }, [user, router]);
 
   async function handleRoleSubmission(role: string) {
     setLoading(true);
@@ -20,7 +30,7 @@ const Role = () => {
         });
       }
 
-      if (role === "EMPLOYER") {
+      if (role === "employer") {
         router.replace("/(protected)/employer");
       } else {
         router.replace("/(protected)/seeker");
@@ -39,13 +49,13 @@ const Role = () => {
       <Text className="text-lg text-gray-600 text-center px-4">
         Select your role to get started
       </Text>
-      
+
       {loading && <ActivityIndicator size="large" color="#0000ff" />}
-      
+
       <View className="flex gap-4">
         <TouchableOpacity
           className="border-2 border-blue-500 rounded-2xl px-12 py-4 bg-blue-50"
-          onPress={() => handleRoleSubmission("EMPLOYER")}
+          onPress={() => handleRoleSubmission("employer")}
           disabled={loading}
         >
           <Text className="text-center font-bold text-xl text-blue-700">
@@ -55,10 +65,10 @@ const Role = () => {
             Looking to hire talent
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           className="border-2 border-green-500 rounded-2xl px-12 py-4 bg-green-50"
-          onPress={() => handleRoleSubmission("JOB_SEEKER")}
+          onPress={() => handleRoleSubmission("job_seeker")}
           disabled={loading}
         >
           <Text className="text-center font-bold text-xl text-green-700">
