@@ -7,15 +7,33 @@ const Role = () => {
   const router = useRouter();
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
+
   useEffect(() => {
-    if (user?.unsafeMetadata?.role) {
-      console.log(user?.unsafeMetadata?.role, "userRole");
-      if (user.unsafeMetadata.role === "employer") {
-        router.replace("/(protected)/employer");
-      } else {
-        router.replace("/(protected)/seeker");
+    if (!user?.unsafeMetadata?.role) return;
+    let isCancelled = false;
+    const { role, new: isNew } = user?.unsafeMetadata;
+    const processUser = async () => {
+      try {
+        if (isNew) {
+          await user.update({ unsafeMetadata: { new: false } });
+        }
+        if (isCancelled) return; // stop if component unmounted
+        console.log(role, "userRole");
+        const targetRoute =
+          role === "employer" ? "/(protected)/employer" : "/(protected)/seeker";
+        router.replace(targetRoute);
+      } catch (error) {
+        if (!isCancelled) {
+          console.error("Error processing user:", error);
+        }
       }
-    }
+    };
+
+    processUser();
+
+    return () => {
+      isCancelled = true; // cleanup on unmount
+    };
   }, [user, router]);
 
   async function handleRoleSubmission(role: string) {
@@ -25,8 +43,8 @@ const Role = () => {
         await user.update({
           unsafeMetadata: {
             role: role,
-            updatedAt: new Date().toISOString()
-          }
+            new: true,
+          },
         });
       }
 

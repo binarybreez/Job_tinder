@@ -51,6 +51,8 @@ const SeekerProfile = () => {
   const [clerkId, setClerkId] = useState("");
   const { user } = useUser();
   const userRole = user?.unsafeMetadata?.role || "JOB_SEEKER";
+  const isNew = user?.unsafeMetadata?.new
+  console.log(isNew,"user type")
   const [isUploading, setIsUploading] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedResumeData | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -59,8 +61,11 @@ const SeekerProfile = () => {
   useEffect(() => {
     if (userId) {
       setClerkId(userId);
+      if(!isNew){
+        fetchUserProfile()
+      }
     }
-  }, [userId]);
+  }, []);
 
   const showAlert = (title: string, message: string) => {
     Alert.alert(title, message);
