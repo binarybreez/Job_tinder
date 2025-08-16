@@ -45,6 +45,14 @@ interface Applicant {
   skills: string[];
   resume_url: string;
   applied_at: string;
+  status: 'applied' | 'shortlisted' | 'rejected';
+}
+
+interface ProfileStatus {
+  profile_completed: boolean;
+  first_name: string;
+  last_name: string;
+  company_name: string;
 }
 
 const EmployerJobs = () => {
@@ -58,14 +66,45 @@ const EmployerJobs = () => {
   const [showJobDetails, setShowJobDetails] = useState(false);
   const [showApplicants, setShowApplicants] = useState(false);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus | null>(null);
+
+  const checkProfileStatus = async () => {
+    try {
+      // Replace with your API endpoint
+      // const response = await fetch(`/api/employer/${userId}/profile/status`);
+      // if (response.ok) {
+      //   const data = await response.json();
+      //   setProfileStatus(data);
+      // } else {
+      //   setProfileStatus({ profile_completed: false, first_name: "", last_name: "", company_name: "" });
+      // }
+
+      // Mock: Simulate profile check
+      const mockProfileStatus = {
+        profile_completed: false, // Change to true to test completed profile
+        first_name: "John",
+        last_name: "Doe",
+        company_name: "TechCorp Solutions",
+      };
+      setProfileStatus(mockProfileStatus);
+    } catch (error) {
+      console.error("Error checking profile status:", error);
+      setProfileStatus({ profile_completed: false, first_name: "", last_name: "", company_name: "" });
+    }
+  };
 
   const fetchJobs = async () => {
     try {
+      if (!profileStatus?.profile_completed) {
+        setJobs([]);
+        return;
+      }
+
       // Replace with your API endpoint
       // const response = await fetch(`/api/employer/${userId}/jobs`);
       // const data = await response.json();
       
-      // Mock data for demo
+      // Mock data for demo - only if profile is completed
       const mockJobs: Job[] = [
         {
           _id: "1",
@@ -108,7 +147,9 @@ const EmployerJobs = () => {
       setJobs(mockJobs);
     } catch (error) {
       console.error("Error fetching jobs:", error);
-      Alert.alert("Error", "Failed to load jobs");
+      if (profileStatus?.profile_completed) {
+        Alert.alert("Error", "Failed to load jobs");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -126,21 +167,23 @@ const EmployerJobs = () => {
       const mockApplicants: Applicant[] = [
         {
           _id: "1",
-          name: "John Doe",
-          email: "john.doe@email.com",
+          name: "John Smith",
+          email: "john.smith@email.com",
           phone: "+1 (555) 123-4567",
           skills: ["React Native", "JavaScript", "TypeScript", "Node.js"],
           resume_url: "https://example.com/resume1.pdf",
           applied_at: "2024-01-16T10:00:00Z",
+          status: 'applied',
         },
         {
           _id: "2",
-          name: "Jane Smith",
-          email: "jane.smith@email.com",
+          name: "Jane Wilson",
+          email: "jane.wilson@email.com",
           phone: "+1 (555) 987-6543",
           skills: ["React Native", "Swift", "Kotlin", "Firebase"],
           resume_url: "https://example.com/resume2.pdf",
           applied_at: "2024-01-17T14:30:00Z",
+          status: 'shortlisted',
         },
         {
           _id: "3",
@@ -150,6 +193,7 @@ const EmployerJobs = () => {
           skills: ["React Native", "Redux", "GraphQL", "AWS"],
           resume_url: "https://example.com/resume3.pdf",
           applied_at: "2024-01-18T09:15:00Z",
+          status: 'applied',
         },
       ];
       
@@ -163,12 +207,58 @@ const EmployerJobs = () => {
   };
 
   useEffect(() => {
-    fetchJobs();
+    checkProfileStatus();
   }, []);
+
+  useEffect(() => {
+    if (profileStatus !== null) {
+      fetchJobs();
+    }
+  }, [profileStatus]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchJobs();
+    checkProfileStatus().then(() => fetchJobs());
+  };
+
+  const handleCompleteProfile = () => {
+    router.push("/(protected)/employer/EmployerProfile");
+  };
+
+  const handleCreateJob = () => {
+    if (!profileStatus?.profile_completed) {
+      Alert.alert(
+        "Complete Profile Required",
+        "Please complete your profile before posting jobs.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Complete Profile", onPress: handleCompleteProfile }
+        ]
+      );
+      return;
+    }
+    router.push("/(protected)/employer/create");
+  };
+
+  const updateApplicantStatus = async (applicantId: string, status: 'shortlisted' | 'rejected') => {
+    try {
+      // Replace with your API endpoint
+      // const response = await fetch(`/api/applicants/${applicantId}/status`, {
+      //   method: 'PUT',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ status }),
+      // });
+
+      // Mock success
+      setApplicants(prev => prev.map(applicant => 
+        applicant._id === applicantId ? { ...applicant, status } : applicant
+      ));
+      
+      Alert.alert("Success", `Applicant ${status === 'shortlisted' ? 'shortlisted' : 'rejected'} successfully`);
+    } catch (error) {
+      console.error("Error updating applicant status:", error);
+      Alert.alert("Error", "Failed to update applicant status");
+    }
   };
 
   const toggleJobStatus = async (job: Job) => {
@@ -333,6 +423,22 @@ const EmployerJobs = () => {
           <Text style={styles.applicantName}>{applicant.name}</Text>
           <Text style={styles.applicantEmail}>{applicant.email}</Text>
           <Text style={styles.applicantPhone}>{applicant.phone}</Text>
+          <View style={styles.statusContainer}>
+            <View style={[
+              styles.statusBadge, 
+              applicant.status === 'shortlisted' ? styles.shortlistedBadge :
+              applicant.status === 'rejected' ? styles.rejectedBadge : styles.appliedBadge
+            ]}>
+              <Text style={[
+                styles.statusText,
+                applicant.status === 'shortlisted' ? styles.shortlistedText :
+                applicant.status === 'rejected' ? styles.rejectedText : styles.appliedText
+              ]}>
+                {applicant.status === 'shortlisted' ? 'Shortlisted' : 
+                 applicant.status === 'rejected' ? 'Rejected' : 'Applied'}
+              </Text>
+            </View>
+          </View>
         </View>
         <TouchableOpacity
           style={styles.resumeButton}
@@ -357,6 +463,26 @@ const EmployerJobs = () => {
       <Text style={styles.appliedDate}>
         Applied on {formatDate(applicant.applied_at)}
       </Text>
+
+      {/* Action Buttons */}
+      <View style={styles.applicantActions}>
+        {applicant.status === 'applied' && (
+          <>
+            <TouchableOpacity
+              style={styles.shortlistButton}
+              onPress={() => updateApplicantStatus(applicant._id, 'shortlisted')}
+            >
+              <Text style={styles.shortlistButtonText}>Shortlist</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => updateApplicantStatus(applicant._id, 'rejected')}
+            >
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     </View>
   );
 
@@ -371,13 +497,44 @@ const EmployerJobs = () => {
     );
   }
 
+  // Show profile incomplete message
+  if (!profileStatus?.profile_completed) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Jobs</Text>
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={handleCreateJob}
+          >
+            <AntDesign name="plus" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.profileIncompleteContainer}>
+          <MaterialIcons name="warning" size={64} color="#F59E0B" />
+          <Text style={styles.profileIncompleteTitle}>Profile Incomplete</Text>
+          <Text style={styles.profileIncompleteMessage}>
+            Complete your employer profile to post jobs and manage applications.
+          </Text>
+          <TouchableOpacity
+            style={styles.completeProfileButton}
+            onPress={handleCompleteProfile}
+          >
+            <Text style={styles.completeProfileButtonText}>Complete Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Jobs</Text>
         <TouchableOpacity
           style={styles.createButton}
-          onPress={() => router.push("/(protected)/employer/create")}
+          onPress={handleCreateJob}
         >
           <AntDesign name="plus" size={20} color="#fff" />
         </TouchableOpacity>
@@ -401,7 +558,7 @@ const EmployerJobs = () => {
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}
-              onPress={() => router.push("/(protected)/employer/create")}
+              onPress={handleCreateJob}
             >
               <Text style={styles.emptyButtonText}>Create Job</Text>
             </TouchableOpacity>
@@ -543,6 +700,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#6B7280",
   },
+  profileIncompleteContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  profileIncompleteTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  profileIncompleteMessage: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  completeProfileButton: {
+    backgroundColor: "#3B82F6",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  completeProfileButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
   listContainer: {
     paddingVertical: 16,
     paddingBottom: 100,
@@ -591,6 +779,15 @@ const styles = StyleSheet.create({
   inactiveBadge: {
     backgroundColor: "#FEF3C7",
   },
+  shortlistedBadge: {
+    backgroundColor: "#DBEAFE",
+  },
+  rejectedBadge: {
+    backgroundColor: "#FEE2E2",
+  },
+  appliedBadge: {
+    backgroundColor: "#F3F4F6",
+  },
   statusText: {
     fontSize: 12,
     fontWeight: "500",
@@ -600,6 +797,15 @@ const styles = StyleSheet.create({
   },
   inactiveText: {
     color: "#92400E",
+  },
+  shortlistedText: {
+    color: "#1E40AF",
+  },
+  rejectedText: {
+    color: "#DC2626",
+  },
+  appliedText: {
+    color: "#374151",
   },
   menuButton: {
     padding: 4,
@@ -772,6 +978,10 @@ const styles = StyleSheet.create({
   applicantPhone: {
     fontSize: 14,
     color: "#6B7280",
+    marginBottom: 8,
+  },
+  statusContainer: {
+    marginTop: 4,
   },
   resumeButton: {
     flexDirection: "row",
@@ -815,6 +1025,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     fontStyle: "italic",
+    marginBottom: 12,
+  },
+  applicantActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  shortlistButton: {
+    flex: 1,
+    backgroundColor: "#10B981",
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  shortlistButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  rejectButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
 

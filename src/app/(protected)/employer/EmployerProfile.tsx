@@ -15,7 +15,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface CompanyProfile {
+interface EmployerProfile {
+  first_name: string;
+  last_name: string;
   company_name: string;
   company_description: string;
   website: string;
@@ -37,84 +39,222 @@ interface CompanyProfile {
   };
   logo_url: string;
   is_verified: boolean;
+  profile_completed: boolean;
 }
 
 const EmployerProfile = () => {
-  const { signOut } = useAuth();
+  const { signOut, userId } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   
-  const [profile, setProfile] = useState<CompanyProfile>({
-    company_name: "TechCorp Solutions",
-    company_description: "A leading technology company specializing in innovative software solutions for businesses worldwide.",
-    website: "https://techcorp.com",
-    industry: "Technology",
-    company_size: "51-200",
+  // Default empty profile
+  const [profile, setProfile] = useState<EmployerProfile>({
+    first_name: "",
+    last_name: "",
+    company_name: "",
+    company_description: "",
+    website: "",
+    industry: "",
+    company_size: "",
     location: {
-      address: "123 Tech Street",
-      city: "San Francisco",
-      state: "CA",
-      country: "USA",
+      address: "",
+      city: "",
+      state: "",
+      country: "",
     },
     contact: {
-      email: "hr@techcorp.com",
-      phone: "+1 (555) 123-4567",
+      email: "",
+      phone: "",
     },
     social_links: {
-      linkedin: "https://linkedin.com/company/techcorp",
-      twitter: "https://twitter.com/techcorp",
+      linkedin: "",
+      twitter: "",
     },
     logo_url: "",
-    is_verified: true,
+    is_verified: false,
+    profile_completed: false,
   });
 
-  const [tempProfile, setTempProfile] = useState<CompanyProfile>(profile);
+  const [tempProfile, setTempProfile] = useState<EmployerProfile>(profile);
 
   useEffect(() => {
     fetchProfile();
   }, []);
 
+  // Check if profile is complete
+  useEffect(() => {
+    const isComplete = profile.first_name.trim() !== "" && 
+                      profile.last_name.trim() !== "" && 
+                      profile.company_name.trim() !== "" && 
+                      profile.location.city.trim() !== "" && 
+                      profile.location.state.trim() !== "";
+    
+    if (profile.profile_completed !== isComplete) {
+      setProfile(prev => ({ ...prev, profile_completed: isComplete }));
+    }
+  }, [profile.first_name, profile.last_name, profile.company_name, profile.location.city, profile.location.state]);
+
   const fetchProfile = async () => {
     try {
+      setInitialLoad(true);
       // Replace with your API endpoint
-      // const response = await fetch(`/api/employer/profile`);
-      // const data = await response.json();
-      // setProfile(data);
-      // setTempProfile(data);
+      // const response = await fetch(`/api/employer/${userId}/profile`);
+      // if (response.ok) {
+      //   const data = await response.json();
+      //   setProfile(data);
+      //   setTempProfile(data);
+      //   if (!data.profile_completed) {
+      //     setEditing(true);
+      //   }
+      // } else {
+      //   // Profile doesn't exist, start in edit mode
+      //   setEditing(true);
+      // }
+
+      // Mock: Check if profile exists (simulate API response)
+      const profileExists = false; // Change this to true to simulate existing profile
+      
+      if (!profileExists) {
+        // New employer - start in edit mode
+        setEditing(true);
+        Alert.alert(
+          "Complete Your Profile",
+          "Please complete your profile to start posting jobs and manage applications.",
+          [{ text: "OK" }]
+        );
+      } else {
+        // Load existing profile (mock data)
+        const mockProfile: EmployerProfile = {
+          first_name: "John",
+          last_name: "Doe",
+          company_name: "TechCorp Solutions",
+          company_description: "A leading technology company specializing in innovative software solutions for businesses worldwide.",
+          website: "https://techcorp.com",
+          industry: "Technology",
+          company_size: "51-200",
+          location: {
+            address: "123 Tech Street",
+            city: "San Francisco",
+            state: "CA",
+            country: "USA",
+          },
+          contact: {
+            email: "hr@techcorp.com",
+            phone: "+1 (555) 123-4567",
+          },
+          social_links: {
+            linkedin: "https://linkedin.com/company/techcorp",
+            twitter: "https://twitter.com/techcorp",
+          },
+          logo_url: "",
+          is_verified: true,
+          profile_completed: true,
+        };
+        setProfile(mockProfile);
+        setTempProfile(mockProfile);
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
+      setEditing(true); // Default to edit mode on error
+    } finally {
+      setInitialLoad(false);
     }
   };
 
+  const validateProfile = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!tempProfile.first_name.trim()) {
+      newErrors.first_name = "First name is required";
+    }
+    
+    if (!tempProfile.last_name.trim()) {
+      newErrors.last_name = "Last name is required";
+    }
+    
+    if (!tempProfile.company_name.trim()) {
+      newErrors.company_name = "Company name is required";
+    }
+    
+    if (!tempProfile.location.city.trim()) {
+      newErrors.city = "City is required";
+    }
+    
+    if (!tempProfile.location.state.trim()) {
+      newErrors.state = "State is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = async () => {
+    if (!validateProfile()) {
+      Alert.alert("Error", "Please fill in all required fields");
+      return;
+    }
+
     setLoading(true);
     try {
       // Replace with your API endpoint
-      // const response = await fetch('/api/employer/profile', {
-      //   method: 'PUT',
+      // const response = await fetch(`/api/employer/${userId}/profile`, {
+      //   method: profile.profile_completed ? 'PUT' : 'POST',
       //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(tempProfile),
+      //   body: JSON.stringify({ ...tempProfile, profile_completed: true }),
       // });
+      
+      // if (!response.ok) {
+      //   throw new Error('Failed to save profile');
+      // }
       
       // Mock success
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      setProfile(tempProfile);
+      const updatedProfile = { ...tempProfile, profile_completed: true };
+      setProfile(updatedProfile);
       setEditing(false);
-      Alert.alert("Success", "Profile updated successfully!");
+      setErrors({});
+      
+      Alert.alert(
+        "Success", 
+        profile.profile_completed ? "Profile updated successfully!" : "Profile created successfully! You can now post jobs and manage applications.",
+        [{ text: "OK" }]
+      );
     } catch (error) {
       console.error("Error updating profile:", error);
-      Alert.alert("Error", "Failed to update profile");
+      Alert.alert("Error", "Failed to save profile. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleCancel = () => {
-    setTempProfile(profile);
-    setEditing(false);
+    if (!profile.profile_completed) {
+      Alert.alert(
+        "Profile Incomplete",
+        "You need to complete your profile to use the app. Are you sure you want to cancel?",
+        [
+          { text: "Continue Editing", style: "default" },
+          { 
+            text: "Cancel Anyway", 
+            style: "destructive",
+            onPress: () => {
+              setTempProfile(profile);
+              setEditing(false);
+              setErrors({});
+            }
+          },
+        ]
+      );
+    } else {
+      setTempProfile(profile);
+      setEditing(false);
+      setErrors({});
+    }
   };
 
   const handleSignOut = async () => {
@@ -127,33 +267,15 @@ const EmployerProfile = () => {
     }
   };
 
-  const companySizeOptions = [
-    "1-10",
-    "11-50",
-    "51-200",
-    "201-500",
-    "501-1000",
-    "1000+",
-  ];
-
-  const industryOptions = [
-    "Technology",
-    "Healthcare",
-    "Finance",
-    "Education",
-    "Manufacturing",
-    "Retail",
-    "Consulting",
-    "Other",
-  ];
-
   const ProfileField = ({ 
     label, 
     value, 
     onChangeText, 
     placeholder, 
     multiline = false,
-    keyboardType = "default" as any
+    keyboardType = "default" as any,
+    required = false,
+    fieldKey
   }: {
     label: string;
     value: string;
@@ -161,44 +283,95 @@ const EmployerProfile = () => {
     placeholder: string;
     multiline?: boolean;
     keyboardType?: any;
+    required?: boolean;
+    fieldKey?: string;
   }) => (
     <View style={styles.fieldContainer}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.fieldLabel}>
+        {label}
+        {required && <Text style={styles.required}> *</Text>}
+      </Text>
       {editing ? (
-        <TextInput
-          style={[styles.fieldInput, multiline && styles.textArea]}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          multiline={multiline}
-          numberOfLines={multiline ? 4 : 1}
-          keyboardType={keyboardType}
-        />
+        <>
+          <TextInput
+            style={[
+              styles.fieldInput, 
+              multiline && styles.textArea,
+              fieldKey && errors[fieldKey] && styles.fieldInputError
+            ]}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            multiline={multiline}
+            numberOfLines={multiline ? 4 : 1}
+            keyboardType={keyboardType}
+          />
+          {fieldKey && errors[fieldKey] && (
+            <Text style={styles.errorText}>{errors[fieldKey]}</Text>
+          )}
+        </>
       ) : (
         <Text style={styles.fieldValue}>{value || "Not specified"}</Text>
       )}
     </View>
   );
 
+  // Show loading screen during initial load
+  if (initialLoad) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <AntDesign name="loading1" size={32} color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show profile incomplete warning
+  if (!editing && !profile.profile_completed) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.incompleteProfileContainer}>
+          <MaterialIcons name="warning" size={64} color="#F59E0B" />
+          <Text style={styles.incompleteTitle}>Profile Incomplete</Text>
+          <Text style={styles.incompleteMessage}>
+            Please complete your profile to start posting jobs and managing applications.
+          </Text>
+          <TouchableOpacity
+            style={styles.completeButton}
+            onPress={() => setEditing(true)}
+          >
+            <Text style={styles.completeButtonText}>Complete Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Company Profile</Text>
-          {profile.is_verified && (
+          <Text style={styles.headerTitle}>
+            {editing ? (profile.profile_completed ? "Edit Profile" : "Complete Profile") : "Company Profile"}
+          </Text>
+          {profile.is_verified && !editing && (
             <View style={styles.verifiedBadge}>
               <MaterialIcons name="verified" size={16} color="#10B981" />
               <Text style={styles.verifiedText}>Verified</Text>
             </View>
           )}
         </View>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={() => setShowLogoutModal(true)}
-        >
-          <MaterialIcons name="logout" size={20} color="#EF4444" />
-        </TouchableOpacity>
+        {!editing && (
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={() => setShowLogoutModal(true)}
+          >
+            <MaterialIcons name="logout" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -224,15 +397,68 @@ const EmployerProfile = () => {
           )}
         </View>
 
-        {/* Basic Information */}
+        {/* Personal Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Basic Information</Text>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          
+          <View style={styles.row}>
+            <View style={[styles.fieldContainer, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.fieldLabel}>
+                First Name
+                <Text style={styles.required}> *</Text>
+              </Text>
+              {editing ? (
+                <>
+                  <TextInput
+                    style={[styles.fieldInput, errors.first_name && styles.fieldInputError]}
+                    value={tempProfile.first_name}
+                    onChangeText={(text) => setTempProfile(prev => ({ ...prev, first_name: text }))}
+                    placeholder="Enter first name"
+                  />
+                  {errors.first_name && (
+                    <Text style={styles.errorText}>{errors.first_name}</Text>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.fieldValue}>{profile.first_name || "Not specified"}</Text>
+              )}
+            </View>
+
+            <View style={[styles.fieldContainer, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.fieldLabel}>
+                Last Name
+                <Text style={styles.required}> *</Text>
+              </Text>
+              {editing ? (
+                <>
+                  <TextInput
+                    style={[styles.fieldInput, errors.last_name && styles.fieldInputError]}
+                    value={tempProfile.last_name}
+                    onChangeText={(text) => setTempProfile(prev => ({ ...prev, last_name: text }))}
+                    placeholder="Enter last name"
+                  />
+                  {errors.last_name && (
+                    <Text style={styles.errorText}>{errors.last_name}</Text>
+                  )}
+                </>
+              ) : (
+                <Text style={styles.fieldValue}>{profile.last_name || "Not specified"}</Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Company Information */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Company Information</Text>
           
           <ProfileField
             label="Company Name"
             value={editing ? tempProfile.company_name : profile.company_name}
             onChangeText={(text) => setTempProfile(prev => ({ ...prev, company_name: text }))}
             placeholder="Enter company name"
+            required
+            fieldKey="company_name"
           />
 
           <ProfileField
@@ -255,14 +481,14 @@ const EmployerProfile = () => {
             label="Industry"
             value={editing ? tempProfile.industry : profile.industry}
             onChangeText={(text) => setTempProfile(prev => ({ ...prev, industry: text }))}
-            placeholder="Select industry"
+            placeholder="e.g., Technology, Healthcare, Finance"
           />
 
           <ProfileField
             label="Company Size"
             value={editing ? tempProfile.company_size : profile.company_size}
             onChangeText={(text) => setTempProfile(prev => ({ ...prev, company_size: text }))}
-            placeholder="Select company size"
+            placeholder="e.g., 1-10, 11-50, 51-200"
           />
         </View>
 
@@ -282,39 +508,65 @@ const EmployerProfile = () => {
 
           <View style={styles.row}>
             <View style={[styles.fieldContainer, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.fieldLabel}>City</Text>
+              <Text style={styles.fieldLabel}>
+                City
+                <Text style={styles.required}> *</Text>
+              </Text>
               {editing ? (
-                <TextInput
-                  style={styles.fieldInput}
-                  value={tempProfile.location.city}
-                  onChangeText={(text) => setTempProfile(prev => ({
-                    ...prev,
-                    location: { ...prev.location, city: text }
-                  }))}
-                  placeholder="City"
-                />
+                <>
+                  <TextInput
+                    style={[styles.fieldInput, errors.city && styles.fieldInputError]}
+                    value={tempProfile.location.city}
+                    onChangeText={(text) => setTempProfile(prev => ({
+                      ...prev,
+                      location: { ...prev.location, city: text }
+                    }))}
+                    placeholder="City"
+                  />
+                  {errors.city && (
+                    <Text style={styles.errorText}>{errors.city}</Text>
+                  )}
+                </>
               ) : (
-                <Text style={styles.fieldValue}>{profile.location.city}</Text>
+                <Text style={styles.fieldValue}>{profile.location.city || "Not specified"}</Text>
               )}
             </View>
 
             <View style={[styles.fieldContainer, { flex: 1, marginLeft: 8 }]}>
-              <Text style={styles.fieldLabel}>State</Text>
+              <Text style={styles.fieldLabel}>
+                State
+                <Text style={styles.required}> *</Text>
+              </Text>
               {editing ? (
-                <TextInput
-                  style={styles.fieldInput}
-                  value={tempProfile.location.state}
-                  onChangeText={(text) => setTempProfile(prev => ({
-                    ...prev,
-                    location: { ...prev.location, state: text }
-                  }))}
-                  placeholder="State"
-                />
+                <>
+                  <TextInput
+                    style={[styles.fieldInput, errors.state && styles.fieldInputError]}
+                    value={tempProfile.location.state}
+                    onChangeText={(text) => setTempProfile(prev => ({
+                      ...prev,
+                      location: { ...prev.location, state: text }
+                    }))}
+                    placeholder="State"
+                  />
+                  {errors.state && (
+                    <Text style={styles.errorText}>{errors.state}</Text>
+                  )}
+                </>
               ) : (
-                <Text style={styles.fieldValue}>{profile.location.state}</Text>
+                <Text style={styles.fieldValue}>{profile.location.state || "Not specified"}</Text>
               )}
             </View>
           </View>
+
+          <ProfileField
+            label="Country"
+            value={editing ? tempProfile.location.country : profile.location.country}
+            onChangeText={(text) => setTempProfile(prev => ({
+              ...prev,
+              location: { ...prev.location, country: text }
+            }))}
+            placeholder="Country"
+          />
         </View>
 
         {/* Contact Information */}
@@ -344,32 +596,34 @@ const EmployerProfile = () => {
           />
         </View>
 
-        {/* Social Links */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Social Media</Text>
-          
-          <ProfileField
-            label="LinkedIn"
-            value={editing ? tempProfile.social_links.linkedin : profile.social_links.linkedin}
-            onChangeText={(text) => setTempProfile(prev => ({
-              ...prev,
-              social_links: { ...prev.social_links, linkedin: text }
-            }))}
-            placeholder="https://linkedin.com/company/yourcompany"
-            keyboardType="url"
-          />
+        {/* Social Links - Only show if profile is completed or being edited */}
+        {(profile.profile_completed || editing) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Social Media</Text>
+            
+            <ProfileField
+              label="LinkedIn"
+              value={editing ? tempProfile.social_links.linkedin : profile.social_links.linkedin}
+              onChangeText={(text) => setTempProfile(prev => ({
+                ...prev,
+                social_links: { ...prev.social_links, linkedin: text }
+              }))}
+              placeholder="https://linkedin.com/company/yourcompany"
+              keyboardType="url"
+            />
 
-          <ProfileField
-            label="Twitter"
-            value={editing ? tempProfile.social_links.twitter : profile.social_links.twitter}
-            onChangeText={(text) => setTempProfile(prev => ({
-              ...prev,
-              social_links: { ...prev.social_links, twitter: text }
-            }))}
-            placeholder="https://twitter.com/yourcompany"
-            keyboardType="url"
-          />
-        </View>
+            <ProfileField
+              label="Twitter"
+              value={editing ? tempProfile.social_links.twitter : profile.social_links.twitter}
+              onChangeText={(text) => setTempProfile(prev => ({
+                ...prev,
+                social_links: { ...prev.social_links, twitter: text }
+              }))}
+              placeholder="https://twitter.com/yourcompany"
+              keyboardType="url"
+            />
+          </View>
+        )}
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
@@ -389,7 +643,9 @@ const EmployerProfile = () => {
                 {loading ? (
                   <AntDesign name="loading1" size={16} color="#fff" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                  <Text style={styles.saveButtonText}>
+                    {profile.profile_completed ? "Save Changes" : "Complete Profile"}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -404,34 +660,36 @@ const EmployerProfile = () => {
           )}
         </View>
 
-        {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Settings</Text>
-          
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <MaterialIcons name="notifications" size={20} color="#6B7280" />
-              <Text style={styles.settingText}>Notification Preferences</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
+        {/* Account Settings - Only show if profile is completed */}
+        {profile.profile_completed && !editing && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account Settings</Text>
+            
+            <TouchableOpacity style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="notifications" size={20} color="#6B7280" />
+                <Text style={styles.settingText}>Notification Preferences</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <MaterialIcons name="security" size={20} color="#6B7280" />
-              <Text style={styles.settingText}>Privacy & Security</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="security" size={20} color="#6B7280" />
+                <Text style={styles.settingText}>Privacy & Security</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              <MaterialIcons name="help" size={20} color="#6B7280" />
-              <Text style={styles.settingText}>Help & Support</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <MaterialIcons name="help" size={20} color="#6B7280" />
+                <Text style={styles.settingText}>Help & Support</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
@@ -473,6 +731,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#F8FAFC",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#6B7280",
+  },
+  incompleteProfileContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  incompleteTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#1F2937",
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  incompleteMessage: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  completeButton: {
+    backgroundColor: "#3B82F6",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  completeButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   header: {
     flexDirection: "row",
@@ -576,6 +875,9 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 8,
   },
+  required: {
+    color: "#EF4444",
+  },
   fieldInput: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -585,6 +887,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "#fff",
   },
+  fieldInputError: {
+    borderColor: "#EF4444",
+  },
   fieldValue: {
     fontSize: 16,
     color: "#1F2937",
@@ -593,6 +898,11 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     textAlignVertical: "top",
+  },
+  errorText: {
+    fontSize: 12,
+    color: "#EF4444",
+    marginTop: 4,
   },
   row: {
     flexDirection: "row",
