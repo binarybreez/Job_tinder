@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -11,110 +11,82 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@clerk/clerk-expo";
 
-interface Job {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  salary: string;
-  matchPercentage: number;
-  type: string;
-  description: string;
-  tags: string[];
-  postedTime: string;
-  requirements: string[];
-  benefits: string[];
-  hrContact: {
-    name: string;
-    position: string;
-    email: string;
-    phone: string;
-    profileImage?: string;
-  };
-  companyDescription: string;
+export interface SalaryRange {
+  min: number;
+  max: number;
+  currency: string;
+  is_public: boolean;
 }
 
+export interface Location {
+  city: string;
+  state?: string;
+  country: string;
+  remote: boolean;
+}
+
+export interface Job {
+  _id: string;
+  title: string;
+  description: string;
+  requirements: string[];
+  responsibilities: string[];
+  employment_type: "full_time" | "part_time" | "contract" | "internship";
+  salary: SalaryRange;
+  location: Location;
+  skills_required: string[];
+  benefits: string[];
+  is_active: boolean;
+  employer_id: string; // Clerk ID of employer
+  posted_at: string;   // ISO date string
+  expires_at: string;  // ISO date string
+}
 const { width } = Dimensions.get("window");
 
 const SavedJobs = () => {
+  const {userId} = useAuth()
   // Mock saved jobs data - in real app, this would come from your state management
-  const savedJobsData: Job[] = [
-    {
-      id: "1",
-      title: "Frontend Developer",
-      company: "Tech Corp",
-      location: "Remote",
-      salary: "$60k - $80k",
-      matchPercentage: 85,
-      type: "Full-time",
-      description:
-        "We are looking for a skilled frontend developer proficient in React Native and modern JavaScript frameworks. You'll work on cutting-edge mobile applications and collaborate with a dynamic team of designers and backend developers.",
-      tags: ["React", "Native", "JavaScript", "TypeScript"],
-      postedTime: "2 days ago",
-      requirements: [
-        "3+ years experience with React Native",
-        "Strong knowledge of JavaScript/TypeScript",
-        "Experience with RESTful APIs",
-        "Knowledge of mobile app deployment processes",
-        "Familiarity with version control (Git)",
-      ],
-      benefits: [
-        "Health insurance",
-        "Remote work flexibility",
-        "Annual bonus",
-        "Professional development budget",
-        "Flexible PTO",
-      ],
-      hrContact: {
-        name: "Sarah Johnson",
-        position: "HR Manager",
-        email: "sarah.johnson@techcorp.com",
-        phone: "+1 (555) 123-4567",
-      },
-      companyDescription:
-        "Tech Corp is a leading technology company specializing in innovative mobile solutions. We pride ourselves on creating user-centric applications that make a real difference in people's lives.",
-    },
-    {
-      id: "3",
-      title: "Mobile App Developer",
-      company: "Innovation Labs",
-      location: "San Francisco, CA",
-      salary: "$85k - $105k",
-      matchPercentage: 91,
-      type: "Full-time",
-      description:
-        "Build cutting-edge mobile applications using React Native and Flutter. Work with a dynamic team on exciting projects that reach millions of users worldwide.",
-      tags: ["React Native", "Flutter", "iOS", "Android"],
-      postedTime: "3 days ago",
-      requirements: [
-        "5+ years mobile development experience",
-        "Expertise in React Native and Flutter",
-        "Experience with both iOS and Android platforms",
-        "Knowledge of mobile UI/UX best practices",
-        "Experience with app store deployment",
-      ],
-      benefits: [
-        "Competitive salary",
-        "Stock options",
-        "Premium health coverage",
-        "Gym membership",
-        "Catered meals",
-      ],
-      hrContact: {
-        name: "Michael Chen",
-        position: "Talent Acquisition Lead",
-        email: "michael.chen@innovationlabs.com",
-        phone: "+1 (555) 987-6543",
-      },
-      companyDescription:
-        "Innovation Labs is at the forefront of mobile technology innovation. We develop groundbreaking applications that transform industries and improve user experiences globally.",
-    },
-  ];
 
-  const [savedJobs, setSavedJobs] = useState<Job[]>(savedJobsData);
+  const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    const fetchLikedJobs = async () => {
+      try {
+        setLoading(true);
+        // ✅ get Clerk ID (depends on your auth setup)
+        const clerkId = userId ;
+        // ✅ call your FastAPI backend
+        const response = await fetch(
+          `https://6ee42c9f2910.ngrok-free.app/api/swipes/like/${clerkId}`,
+          {
+            method:"GET",
+            headers:{
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch liked jobs");
+        }
+
+        const data: Job[] = await response.json();
+        console.log(data)
+        setSavedJobs(data);
+      } catch (error) {
+        console.error("Error fetching liked jobs:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLikedJobs();
+  }, []);
 
   const handleJobPress = (job: Job) => {
     setSelectedJob(job);
@@ -131,7 +103,7 @@ const SavedJobs = () => {
           text: "Remove",
           style: "destructive",
           onPress: () => {
-            setSavedJobs(prev => prev.filter(job => job.id !== jobId));
+            setSavedJobs(prev => prev.filter(job => job._id !== jobId));
           },
         },
       ]
@@ -165,7 +137,7 @@ const SavedJobs = () => {
 
   const renderJobCard = (job: Job) => (
     <TouchableOpacity
-      key={job.id}
+      key={job._id}
       style={styles.jobCard}
       onPress={() => handleJobPress(job)}
       activeOpacity={0.7}
