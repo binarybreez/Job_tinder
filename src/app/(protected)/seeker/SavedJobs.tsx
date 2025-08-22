@@ -179,11 +179,11 @@ const SavedJobs = () => {
           <Text style={styles.company}>{job.company}</Text>
           <View style={styles.jobMeta}>
             <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={14} color="#6b7280" />
+              <Ionicons name="location-outline" size={14} color="#94a3b8" />
               <Text style={styles.metaText}>{job.location}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="cash-outline" size={14} color="#6b7280" />
+              <Ionicons name="cash-outline" size={14} color="#94a3b8" />
               <Text style={styles.metaText}>{job.salary}</Text>
             </View>
           </View>
@@ -231,7 +231,7 @@ const SavedJobs = () => {
             style={styles.closeButton}
             onPress={() => setShowJobModal(false)}
           >
-            <Ionicons name="close" size={24} color="#374151" />
+            <Ionicons name="close" size={24} color="#f1f5f9" />
           </TouchableOpacity>
           <Text style={styles.modalTitle}>Job Details</Text>
           <View style={styles.placeholder} />
@@ -246,19 +246,19 @@ const SavedJobs = () => {
                 <Text style={styles.modalCompany}>{selectedJob.company}</Text>
                 <View style={styles.jobDetails}>
                   <View style={styles.detailItem}>
-                    <Ionicons name="location-outline" size={16} color="#6b7280" />
+                    <Ionicons name="location-outline" size={16} color="#94a3b8" />
                     <Text style={styles.detailText}>{selectedJob.location}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={16} color="#6b7280" />
+                    <Ionicons name="cash-outline" size={16} color="#94a3b8" />
                     <Text style={styles.detailText}>{selectedJob.salary}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="time-outline" size={16} color="#6b7280" />
+                    <Ionicons name="time-outline" size={16} color="#94a3b8" />
                     <Text style={styles.detailText}>{selectedJob.postedTime}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="briefcase-outline" size={16} color="#6b7280" />
+                    <Ionicons name="briefcase-outline" size={16} color="#94a3b8" />
                     <Text style={styles.detailText}>{selectedJob.type}</Text>
                   </View>
                 </View>
@@ -332,7 +332,7 @@ const SavedJobs = () => {
                   <Text style={styles.hrEmail}>{selectedJob.hrContact.email}</Text>
                   <Text style={styles.hrPhone}>{selectedJob.hrContact.phone}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+                <Ionicons name="chevron-forward" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -366,7 +366,7 @@ const SavedJobs = () => {
 
       {savedJobs.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="bookmark-outline" size={64} color="#d1d5db" />
+          <Ionicons name="bookmark-outline" size={64} color="#64748b" />
           <Text style={styles.emptyTitle}>No Saved Jobs</Text>
           <Text style={styles.emptyDescription}>
             Jobs you bookmark will appear here for easy access
@@ -392,7 +392,8 @@ export default SavedJobs;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#0f172a",
+    backgroundImage: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
   },
   header: {
     flexDirection: "row",
@@ -400,14 +401,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#374151",
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1f2937",
+    color: "#f1f5f9",
     marginRight: 8,
   },
   headerBadge: {
@@ -432,13 +433,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#374151",
+    color: "#f1f5f9",
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#cbd5e1",
     textAlign: "center",
     lineHeight: 20,
   },
@@ -456,11 +457,11 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   cardHeader: {
     flexDirection: "row",
@@ -563,7 +564,8 @@ const styles = StyleSheet.create({
   // Modal Styles
   modalContainer: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#1e293b",
+    backgroundImage: 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%)',
   },
   modalHeader: {
     flexDirection: "row",
@@ -572,7 +574,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#374151",
+    backgroundColor: "rgba(30, 41, 59, 0.8)",
   },
   closeButton: {
     padding: 4,
@@ -580,7 +583,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1f2937",
+    color: "#f1f5f9",
   },
   placeholder: {
     width: 32,
@@ -592,7 +595,7 @@ const styles = StyleSheet.create({
   jobHeader: {
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#374151",
     marginBottom: 20,
   },
   jobHeaderInfo: {
@@ -601,12 +604,12 @@ const styles = StyleSheet.create({
   modalJobTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#1f2937",
+    color: "#f1f5f9",
     marginBottom: 4,
   },
   modalCompany: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#cbd5e1",
     marginBottom: 16,
   },
   jobDetails: {
@@ -621,7 +624,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: "#4b5563",
+    color: "#e2e8f0",
     marginLeft: 6,
   },
   matchBadgeLarge: {
@@ -644,12 +647,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1f2937",
+    color: "#f1f5f9",
     marginBottom: 12,
   },
   sectionContent: {
     fontSize: 14,
-    color: "#4b5563",
+    color: "#cbd5e1",
     lineHeight: 22,
   },
   listItem: {
@@ -665,7 +668,7 @@ const styles = StyleSheet.create({
   },
   listText: {
     fontSize: 14,
-    color: "#4b5563",
+    color: "#cbd5e1",
     flex: 1,
     lineHeight: 20,
   },
@@ -691,11 +694,11 @@ const styles = StyleSheet.create({
   hrCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "rgba(30, 41, 59, 0.6)",
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#374151",
   },
   hrAvatar: {
     width: 48,
@@ -717,12 +720,12 @@ const styles = StyleSheet.create({
   hrName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1f2937",
+    color: "#f1f5f9",
     marginBottom: 2,
   },
   hrPosition: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#cbd5e1",
     marginBottom: 4,
   },
   hrEmail: {
@@ -732,7 +735,7 @@ const styles = StyleSheet.create({
   },
   hrPhone: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#94a3b8",
   },
   modalFooterSpacer: {
     height: 80,
@@ -742,12 +745,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(30, 41, 59, 0.9)",
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: "#374151",
   },
   applyButton: {
     backgroundColor: "#3b82f6",
