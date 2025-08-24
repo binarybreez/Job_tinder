@@ -546,22 +546,26 @@ const SeekerProfile = () => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Improved Header */}
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.mainTitle}>Job Seeker Profile</Text>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <View style={styles.profileIconContainer}>
+                <Ionicons name="person-circle-outline" size={32} color="#2563eb" />
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.mainTitle}>Job Seeker Profile</Text>
+                <Text style={styles.welcomeText}>Welcome back, {user?.firstName || 'User'}!</Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={handleSignOut}
-              style={styles.signOutIconButton}
+              style={styles.signOutButton}
             >
-              <Ionicons name="log-out-outline" size={24} color="#dc2626" />
+              <Ionicons name="log-out-outline" size={20} color="#dc2626" />
+              <Text style={styles.signOutText}>Sign Out</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.subtitle}>
-            Manage your professional information and upload your resume
-          </Text>
         </View>
 
         {/* Parsed Data Card - Now appears first */}
@@ -895,40 +899,67 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   header: {
-    marginBottom: 24,
-    paddingTop: Platform.OS === "ios" ? 20 : 20,
+    marginBottom: 20,
+    paddingTop: Platform.OS === "ios" ? 10 : 10,
   },
-  headerTop: {
+  headerContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
-    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  headerTitleContainer: {
-    flex: 1,
+  headerLeft: {
+    flexDirection: "row",
     alignItems: "center",
+    flex: 1,
   },
-  signOutIconButton: {
-    padding: 8,
+  profileIconContainer: {
+    width: 48,
+    height: 48,
+    backgroundColor: "#dbeafe",
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  mainTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: "#fef2f2",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#fecaca",
   },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#6b7280",
-    textAlign: "center",
-    paddingHorizontal: 20,
-    lineHeight: 24,
+  signOutText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#dc2626",
+    marginLeft: 4,
   },
   card: {
     backgroundColor: "#ffffff",
@@ -980,6 +1011,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     color: "#ffffff",
+    marginBottom: 30,
   },
   cancelButton: {
     backgroundColor: "#f3f4f6",
@@ -1140,6 +1172,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     marginTop: 8,
+    marginBottom: 50,
   },
   uploadButtonDisabled: {
     backgroundColor: "#d1d5db",
@@ -1333,4 +1366,4 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: "center",
   },
-})
+});

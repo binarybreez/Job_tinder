@@ -11,7 +11,7 @@ const SeekerLayout = () => {
         tabBarInactiveTintColor: "#6B7280", // Darker gray color for inactive tabs
         tabBarStyle: {
           position: "absolute",
-          bottom:0, // moves tab bar up from bottom
+          bottom: 0, // moves tab bar up from bottom
           left: 16,
           right: 16,
           borderRadius: 16,
@@ -32,6 +32,20 @@ const SeekerLayout = () => {
         tabBarItemStyle: {
           paddingVertical: 8,
         },
+        // Apply consistent header styling to all screens
+        headerShown: true,
+        headerStyle: {
+          backgroundColor: "#2C3E50", // Dark blue-gray header background
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 0,
+        },
+        headerTintColor: "#FFFFFF", // White text
+        headerTitleStyle: {
+          fontSize: 18,
+          fontWeight: "600",
+          color: "#FFFFFF",
+        },
       }}
     >
       <Tabs.Screen
@@ -39,19 +53,19 @@ const SeekerLayout = () => {
         options={{
           headerTitle: "Hinge",
           title: "Home",
-          headerTintColor: "#FF5700",
-          tabBarIcon: ({ color, focused }) => (
-            <AntDesign 
-              name="home" 
-              size={24} 
-              color={focused ? "#4A90E2" : "#6B7280"} 
+          tabBarIcon: ({ focused }) => (
+            <AntDesign
+              name="home"
+              size={24}
+              color={focused ? "#4A90E2" : "#6B7280"}
             />
           ),
           headerRight: () => (
             <Feather
               name="log-out"
               size={26}
-              className="mr-4"
+              color="#FFFFFF" // Changed to white to match header style
+              style={{ marginRight: 16 }}
               onPress={() => signOut()}
             />
           ),
@@ -60,20 +74,7 @@ const SeekerLayout = () => {
       <Tabs.Screen
         name="SeekerJobs"
         options={{
-          headerShown: true,
           headerTitle: "Industrial Jobs",
-          headerStyle: {
-            backgroundColor: "#2C3E50", // Dark blue-gray header background to match image
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 0,
-          },
-          headerTintColor: "#FFFFFF", // White text
-          headerTitleStyle: {
-            fontSize: 18,
-            fontWeight: "600",
-            color: "#FFFFFF",
-          },
           title: "Jobs",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 
@@ -95,7 +96,7 @@ const SeekerLayout = () => {
       <Tabs.Screen
         name="SavedJobs"
         options={{
-          headerShown: false,
+          headerTitle: "Saved Jobs",
           title: "Saved",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
@@ -109,7 +110,7 @@ const SeekerLayout = () => {
       <Tabs.Screen
         name="SeekerProfile"
         options={{
-          headerShown: false,
+          headerTitle: "Profile",
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons 

@@ -420,7 +420,6 @@ const SavedJobs = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Saved Jobs</Text>
         <View style={styles.headerBadge}>
           <Text style={styles.headerBadgeText}>{savedJobs.length}</Text>
         </View>
@@ -428,14 +427,19 @@ const SavedJobs = () => {
 
       {loading ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Loading...</Text>
+          <View style={styles.loadingSpinner}>
+            <Text style={styles.loadingEmoji}>🔄</Text>
+          </View>
+          <Text style={styles.emptyTitle}>Loading your saved jobs...</Text>
         </View>
       ) : savedJobs.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="bookmark-outline" size={64} color="#d1d5db" />
-          <Text style={styles.emptyTitle}>No Saved Jobs</Text>
+          <View style={styles.emptyIcon}>
+            <Text style={styles.emptyEmoji}>🔖</Text>
+          </View>
+          <Text style={styles.emptyTitle}>No Saved Jobs Yet</Text>
           <Text style={styles.emptyDescription}>
-            Jobs you bookmark will appear here for easy access
+            Jobs you bookmark will appear here for easy access. Start exploring and save jobs that interest you!
           </Text>
         </View>
       ) : (
@@ -458,33 +462,28 @@ export default SavedJobs;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1e3a5f", // Dark blue background to match image
+    backgroundColor: "#0f172a",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#1e3a5f", // Match container background
+    paddingTop: 10,
+    paddingBottom: 10,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#ffffff", // White text for dark background
-    marginRight: 8,
-  },
+
   headerBadge: {
     backgroundColor: "#3b82f6",
     borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 4,
     minWidth: 24,
     alignItems: "center",
   },
   headerBadgeText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
   },
   emptyState: {
@@ -493,55 +492,80 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 40,
   },
+  emptyIcon: {
+    marginBottom: 16,
+  },
+  emptyEmoji: {
+    fontSize: 64,
+    opacity: 0.7,
+  },
+  loadingSpinner: {
+    marginBottom: 16,
+    transform: [{ rotate: '0deg' }], // Will be animated in real app
+  },
+  loadingEmoji: {
+    fontSize: 32,
+    opacity: 0.8,
+  },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#ffffff",
-    marginTop: 16,
     marginBottom: 8,
+    textAlign: "center",
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   emptyDescription: {
     fontSize: 14,
-    color: "#9ca3af",
+    color: "#cbd5e1", // Light slate for better readability
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
+    opacity: 0.9,
   },
   jobsList: {
     flex: 1,
   },
   jobsListContent: {
     padding: 16,
+    paddingTop: 8,
   },
   jobCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    marginHorizontal: 2,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 14,
     backgroundColor: "#dbeafe",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
+    shadowColor: "#3b82f6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   logoText: {
-    fontWeight: "bold",
+    fontWeight: "800",
     fontSize: 18,
     color: "#1e3a8a",
   },
@@ -549,19 +573,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   jobTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "700",
     color: "#1f2937",
     marginBottom: 4,
+    lineHeight: 22,
   },
   company: {
     fontSize: 14,
     color: "#6b7280",
-    marginBottom: 8,
+    fontWeight: "500",
+    marginBottom: 10,
   },
   jobMeta: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 4,
   },
   metaItem: {
     flexDirection: "row",
@@ -572,33 +599,36 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: "#6b7280",
+    fontWeight: "500",
     marginLeft: 4,
   },
   cardActions: {
     alignItems: "flex-end",
+    gap: 8,
   },
   matchBadge: {
     backgroundColor: "#ecfdf5",
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#22c55e",
-    marginBottom: 8,
   },
   matchText: {
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     color: "#22c55e",
   },
   unsaveButton: {
-    padding: 4,
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "#fef2f2",
   },
   jobDescription: {
     fontSize: 14,
     color: "#4b5563",
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   tags: {
     flexDirection: "row",
@@ -606,25 +636,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tag: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#e0e7ff",
     paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     borderRadius: 12,
     marginRight: 6,
     marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
   },
   tagText: {
-    fontSize: 10,
-    color: "#475569",
-    fontWeight: "500",
+    fontSize: 11,
+    color: "#3730a3",
+    fontWeight: "600",
   },
   moreTagsText: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#6b7280",
     fontStyle: "italic",
+    fontWeight: "500",
   },
   
-  // Modal Styles
+  // Modal Styles (keeping white for readability)
   modalContainer: {
     flex: 1,
     backgroundColor: "#fff",
@@ -637,6 +670,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
+    backgroundColor: "#fff",
   },
   closeButton: {
     padding: 4,
@@ -818,6 +852,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
+    shadowColor: "#3b82f6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   applyButtonText: {
     color: "#fff",
