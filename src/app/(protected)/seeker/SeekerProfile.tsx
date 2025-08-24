@@ -1,5 +1,6 @@
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from 'expo-file-system';
 import { useRouter } from "expo-router";
@@ -11,21 +12,36 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import axios from "axios";
 
 // Add your API base URL - you can store this in environment variables
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 interface ParsedResumeData {
+  // Personal Info
+  "First Name"?: string;
+  "Last Name"?: string;
   "Full Name"?: string;
   Email?: string;
   "Phone Number"?: string;
-  "LinkedIn Profile"?: string;
-  Skills?: string[];
+  Location?: string;
+  "Willing to relocate"?: boolean;
+  
+  // Professional Info
+  Role?: string;
+  "Company details"?: string;
+  "Resume file"?: string;
+  
+  // Skills
+  "Technical Skills"?: string[];
+  "Soft Skills"?: string[];
+  Skills?: string[]; // Keep for backward compatibility
+  
+  // Experience & Education
   Experience?: Array<{
     Company: string;
     Role: string;
@@ -42,6 +58,11 @@ interface ParsedResumeData {
     Name: string;
     Description: string;
   }>;
+  
+  // Social Links
+  "LinkedIn Profile"?: string;
+  "GitHub Profile"?: string;
+  "Portfolio URL"?: string;
 }
 
 const SeekerProfile = () => {
@@ -56,6 +77,11 @@ const SeekerProfile = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedResumeData | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // New states for editing functionality
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedData, setEditedData] = useState<ParsedResumeData | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Set clerkId from authenticated user
   useEffect(() => {
@@ -66,6 +92,13 @@ const SeekerProfile = () => {
       }
     }
   }, []);
+
+  // Update editedData when parsedData changes
+  useEffect(() => {
+    if (parsedData) {
+      setEditedData({ ...parsedData });
+    }
+  }, [parsedData]);
 
   const showAlert = (title: string, message: string) => {
     Alert.alert(title, message);
@@ -82,13 +115,33 @@ const SeekerProfile = () => {
         const profile = response.data;
         setUserProfile(profile);
         // If user already has parsed resume data, show it
-        if (profile.skills || profile.experience) {
+        if (profile.skills || profile.experience || profile.technical_skills || profile.soft_skills) {
           const formattedData: ParsedResumeData = {
+            // Personal Info
+            "First Name": profile.first_name,
+            "Last Name": profile.last_name,
             "Full Name": profile.full_name,
             Email: profile.email,
             "Phone Number": profile.phone,
+            Location: profile.location,
+            "Willing to relocate": profile.willing_to_relocate,
+            
+            // Professional Info
+            Role: profile.role || "job_seeker",
+            "Company details": profile.current_company,
+            "Resume file": profile.resume_filename,
+            
+            // Skills - prioritize categorized skills over general skills
+            "Technical Skills": profile.technical_skills && profile.technical_skills.length > 0 ? profile.technical_skills : null,
+            "Soft Skills": profile.soft_skills && profile.soft_skills.length > 0 ? profile.soft_skills : null,
+            Skills: profile.skills, // Keep for backward compatibility
+            
+            // Social Links
             "LinkedIn Profile": profile.social_links?.linkedin,
-            Skills: profile.skills,
+            "GitHub Profile": profile.social_links?.github,
+            "Portfolio URL": profile.social_links?.portfolio,
+            
+            // Experience, Education, etc.
             Experience: profile.experience?.map((exp: any) => ({
               Company: exp.company,
               Role: exp.position,
@@ -98,10 +151,13 @@ const SeekerProfile = () => {
             Education: profile.education?.map((edu: any) => ({
               Degree: edu.degree,
               University: edu.institution,
-              Year: edu.year,
+              Year: edu.Year || edu.year,
             })),
             Certifications: profile.certifications,
-            Projects: profile.projects,
+            Projects: profile.projects?.map((proj: any) => ({
+              Name: proj.name,
+              Description: proj.description,
+            })),
           };
           setParsedData(formattedData);
         }
@@ -204,6 +260,94 @@ const SeekerProfile = () => {
     }
   };
 
+  // New function to handle saving edited data
+  const handleSaveChanges = async () => {
+    if (!editedData || !userId) {
+      showAlert("Error", "No data to save");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Prepare data for API call
+      const updatedProfile = {
+        clerk_id: userId,
+        // Personal Info
+        first_name: editedData["First Name"],
+        last_name: editedData["Last Name"],
+        full_name: editedData["Full Name"],
+        email: editedData.Email,
+        phone: editedData["Phone Number"],
+        location: editedData.Location,
+        willing_to_relocate: editedData["Willing to relocate"],
+        
+        // Professional Info
+        role: editedData.Role,
+        current_company: editedData["Company details"],
+        
+        // Skills
+        technical_skills: editedData["Technical Skills"],
+        soft_skills: editedData["Soft Skills"],
+        skills: editedData.Skills, // Keep for backward compatibility
+        
+        // Social Links
+        social_links: {
+          linkedin: editedData["LinkedIn Profile"],
+          github: editedData["GitHub Profile"],
+          portfolio: editedData["Portfolio URL"]
+        },
+        
+        // Experience, Education, etc.
+        experience: editedData.Experience?.map(exp => ({
+          company: exp.Company,
+          position: exp.Role,
+          duration: exp.Duration,
+          description: exp.Description
+        })),
+        education: editedData.Education?.map(edu => ({
+          degree: edu.Degree,
+          institution: edu.University,
+          year: edu.Year
+        })),
+        certifications: editedData.Certifications,
+        projects: editedData.Projects?.map(proj => ({
+          name: proj.Name,
+          description: proj.Description
+        }))
+      };
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/users/update-profile`,
+        updatedProfile,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+
+      if (response.status === 200) {
+        setParsedData(editedData);
+        setIsEditing(false);
+        showAlert("Success", "Profile updated successfully!");
+        await fetchUserProfile(); // Refresh the profile
+      } else {
+        throw new Error("Failed to update profile");
+      }
+    } catch (error: any) {
+      console.error("Save error:", error);
+      showAlert("Error", error.message || "Failed to save changes");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedData(parsedData ? { ...parsedData } : null);
+    setIsEditing(false);
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -213,11 +357,78 @@ const SeekerProfile = () => {
     }
   };
 
+  // Helper functions for editing
+  const updateBasicInfo = (field: string, value: string | boolean) => {
+    if (!editedData) return;
+    setEditedData({
+      ...editedData,
+      [field]: value
+    });
+  };
+
+  const updateSkill = (index: number, value: string) => {
+    if (!editedData || !editedData.Skills) return;
+    const updatedSkills = [...editedData.Skills];
+    updatedSkills[index] = value;
+    setEditedData({
+      ...editedData,
+      Skills: updatedSkills
+    });
+  };
+
+  const addSkill = () => {
+    if (!editedData) return;
+    const updatedSkills = editedData.Skills ? [...editedData.Skills, ""] : [""];
+    setEditedData({
+      ...editedData,
+      Skills: updatedSkills
+    });
+  };
+
+  const removeSkill = (index: number) => {
+    if (!editedData || !editedData.Skills) return;
+    const updatedSkills = editedData.Skills.filter((_, i) => i !== index);
+    setEditedData({
+      ...editedData,
+      Skills: updatedSkills
+    });
+  };
+
+  // Render functions
   const renderSkillTag = (skill: string, index: number) => (
     <View key={index} style={styles.skillTag}>
       <Text style={styles.skillText}>{skill}</Text>
     </View>
   );
+
+  const renderEditableSkills = () => {
+    if (!editedData?.Skills) return null;
+    
+    return (
+      <View style={styles.editableSkillsContainer}>
+        {editedData.Skills.map((skill, index) => (
+          <View key={index} style={styles.editableSkillItem}>
+            <TextInput
+              style={styles.skillInput}
+              value={skill}
+              onChangeText={(text) => updateSkill(index, text)}
+              placeholder="Enter skill"
+            />
+            <TouchableOpacity
+              onPress={() => removeSkill(index)}
+              style={styles.removeSkillButton}
+            >
+              <Ionicons name="close-circle" size={20} color="#dc2626" />
+            </TouchableOpacity>
+          </View>
+        ))}
+        <TouchableOpacity onPress={addSkill} style={styles.addSkillButton}>
+          <Ionicons name="add-circle-outline" size={16} color="#2563eb" />
+          <Text style={styles.addSkillText}>Add Skill</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderExperienceItem = (exp: any, index: number) => (
     <View key={index} style={styles.experienceItem}>
@@ -251,6 +462,84 @@ const SeekerProfile = () => {
     </View>
   );
 
+  const renderEditableBasicInfo = () => {
+    if (!editedData) return null;
+
+    return (
+      <View style={styles.editableSection}>
+        <View style={styles.inputRow}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>First Name</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editedData["First Name"] || ""}
+              onChangeText={(text) => updateBasicInfo("First Name", text)}
+              placeholder="Enter first name"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Last Name</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editedData["Last Name"] || ""}
+              onChangeText={(text) => updateBasicInfo("Last Name", text)}
+              placeholder="Enter last name"
+            />
+          </View>
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Email</Text>
+          <TextInput
+            style={styles.textInput}
+            value={editedData.Email || ""}
+            onChangeText={(text) => updateBasicInfo("Email", text)}
+            placeholder="Enter email"
+            keyboardType="email-address"
+          />
+        </View>
+
+        <View style={styles.inputRow}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Phone Number</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editedData["Phone Number"] || ""}
+              onChangeText={(text) => updateBasicInfo("Phone Number", text)}
+              placeholder="Enter phone number"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Location</Text>
+            <TextInput
+              style={styles.textInput}
+              value={editedData.Location || ""}
+              onChangeText={(text) => updateBasicInfo("Location", text)}
+              placeholder="Enter location"
+            />
+          </View>
+        </View>
+
+        <View style={styles.checkboxContainer}>
+          <TouchableOpacity
+            style={styles.checkbox}
+            onPress={() => updateBasicInfo("Willing to relocate", !editedData["Willing to relocate"])}
+          >
+            <Ionicons
+              name={editedData["Willing to relocate"] ? "checkbox" : "square-outline"}
+              size={20}
+              color={editedData["Willing to relocate"] ? "#2563eb" : "#9ca3af"}
+            />
+            <Text style={styles.checkboxLabel}>Willing to relocate</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -275,118 +564,181 @@ const SeekerProfile = () => {
           </Text>
         </View>
 
-        {/* Resume Upload Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="cloud-upload-outline" size={20} color="#2563eb" />
-            <Text style={styles.cardTitle}>Resume Upload</Text>
-          </View>
-          <Text style={styles.cardDescription}>
-            Select your resume file and provide your details
-          </Text>
-
-          {/* File Upload Area */}
-          <TouchableOpacity style={styles.uploadArea} onPress={pickDocument}>
-            <View style={styles.uploadIcon}>
-              <Ionicons name="cloud-upload-outline" size={32} color="#2563eb" />
-            </View>
-            <Text style={styles.uploadTitle}>Upload your resume</Text>
-            <Text style={styles.uploadDescription}>
-              Tap here to select your resume file
-            </Text>
-            <Text style={styles.uploadSubtext}>
-              Supports PDF, DOC, DOCX files up to 5MB
-            </Text>
-            <View style={styles.chooseFileButton}>
-              <Text style={styles.chooseFileText}>Choose File</Text>
-            </View>
-
-            {selectedFile && (
-              <View style={styles.selectedFile}>
-                <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
-                <Text style={styles.selectedFileSize}>
-                  {selectedFile.size
-                    ? (selectedFile.size / 1024 / 1024).toFixed(2) + " MB"
-                    : "Unknown size"}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Upload Button */}
-          <TouchableOpacity
-            style={[
-              styles.uploadButton,
-              (!selectedFile || !userId || !userRole || isUploading) &&
-                styles.uploadButtonDisabled,
-            ]}
-            onPress={handleUpload}
-            disabled={!selectedFile || !userId || !userRole || isUploading}
-          >
-            {isUploading ? (
-              <View style={styles.uploadButtonContent}>
-                <ActivityIndicator size="small" color="#ffffff" />
-                <Text style={styles.uploadButtonText}>Uploading...</Text>
-              </View>
-            ) : (
-              <View style={styles.uploadButtonContent}>
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={16}
-                  color="#ffffff"
-                />
-                <Text style={styles.uploadButtonText}>Upload Resume</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Parsed Data Card */}
+        {/* Parsed Data Card - Now appears first */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="document-text-outline" size={20} color="#059669" />
-            <Text style={styles.cardTitle}>Parsed Resume Data</Text>
+            <Text style={styles.cardTitle}>Professional Profile</Text>
+            {parsedData && (
+              <View style={styles.cardHeaderActions}>
+                {isEditing ? (
+                  <>
+                    <TouchableOpacity
+                      onPress={handleCancelEdit}
+                      style={[styles.actionButton, styles.cancelButton]}
+                      disabled={isSaving}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleSaveChanges}
+                      style={[styles.actionButton, styles.saveButton]}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={16} color="#ffffff" />
+                          <Text style={styles.saveButtonText}>Save</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setIsEditing(true)}
+                    style={[styles.actionButton, styles.editButton]}
+                  >
+                    <Ionicons name="pencil" size={16} color="#2563eb" />
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
           <Text style={styles.cardDescription}>
-            Extracted information from your resume
+            {parsedData 
+              ? "Your professional information extracted from your resume" 
+              : "Upload a resume to extract and manage your professional information"
+            }
           </Text>
 
           {parsedData ? (
             <View style={styles.parsedDataContainer}>
-              <View style={styles.successIndicator}>
-                <Ionicons name="checkmark-circle" size={16} color="#059669" />
-                <Text style={styles.successText}>
-                  Resume parsed successfully
-                </Text>
-              </View>
+              {!isEditing && (
+                <View style={styles.successIndicator}>
+                  <Ionicons name="checkmark-circle" size={16} color="#059669" />
+                  <Text style={styles.successText}>
+                    Profile data available
+                  </Text>
+                </View>
+              )}
 
-              {/* Basic Information */}
+              {/* Personal Information */}
               <View style={styles.dataSection}>
-                <Text style={styles.sectionTitle}>Basic Information</Text>
-                <Text style={styles.dataText}>
-                  Name: {parsedData["Full Name"]}
-                </Text>
-                <Text style={styles.dataText}>
-                  Email: {parsedData["Email"]}
-                </Text>
-                {parsedData["Phone Number"] && (
-                  <Text style={styles.dataText}>
-                    Phone: {parsedData["Phone Number"]}
-                  </Text>
-                )}
-                {parsedData["LinkedIn Profile"] && (
-                  <Text style={styles.dataText}>
-                    LinkedIn: {parsedData["LinkedIn Profile"]}
-                  </Text>
+                <Text style={styles.sectionTitle}>Personal Information</Text>
+                {isEditing ? (
+                  renderEditableBasicInfo()
+                ) : (
+                  <View style={styles.infoContainer}>
+                    <Text style={styles.dataText}>
+                      Name: {parsedData["Full Name"] || [parsedData["First Name"], parsedData["Last Name"]].filter(Boolean).join(" ") || "Not provided"}
+                    </Text>
+                    <Text style={styles.dataText}>
+                      Email: {parsedData.Email || "Not provided"}
+                    </Text>
+                    <Text style={styles.dataText}>
+                      Phone: {parsedData["Phone Number"] || "Not provided"}
+                    </Text>
+                    {parsedData.Location && (
+                      <Text style={styles.dataText}>Location: {parsedData.Location}</Text>
+                    )}
+                    <Text style={styles.dataText}>
+                      Willing to relocate: {parsedData["Willing to relocate"] !== undefined ? (parsedData["Willing to relocate"] ? "Yes" : "No") : "Not specified"}
+                    </Text>
+                  </View>
                 )}
               </View>
 
-              {/* Skills */}
-              {parsedData["Skills"] && parsedData["Skills"].length > 0 && (
+              {/* Professional Information */}
+              <View style={styles.dataSection}>
+                <Text style={styles.sectionTitle}>Professional Information</Text>
+                <View style={styles.infoContainer}>
+                  <Text style={styles.dataText}>
+                    Role: {parsedData.Role || "job_seeker"}
+                  </Text>
+                  {parsedData["Company details"] && (
+                    <Text style={styles.dataText}>Current Company: {parsedData["Company details"]}</Text>
+                  )}
+                  {parsedData["Resume file"] && (
+                    <Text style={styles.dataText}>Resume File: {parsedData["Resume file"]}</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Skills Section */}
+              {((parsedData.Skills && parsedData.Skills.length > 0) || 
+                (parsedData["Technical Skills"] && parsedData["Technical Skills"].length > 0) || 
+                (parsedData["Soft Skills"] && parsedData["Soft Skills"].length > 0)) && (
                 <View style={styles.dataSection}>
                   <Text style={styles.sectionTitle}>Skills</Text>
-                  <View style={styles.skillsContainer}>
-                    {parsedData["Skills"].map(renderSkillTag)}
+                  
+                  {/* If we have categorized skills, show them separately */}
+                  {parsedData["Technical Skills"] && parsedData["Technical Skills"].length > 0 && (
+                    <View style={styles.skillSubsection}>
+                      <Text style={styles.skillSubtitle}>Technical Skills</Text>
+                      <View style={styles.skillsContainer}>
+                        {parsedData["Technical Skills"].map((skill, index) => (
+                          <View key={index} style={[styles.skillTag, styles.technicalSkillTag]}>
+                            <Text style={[styles.skillText, styles.technicalSkillText]}>{skill}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {parsedData["Soft Skills"] && parsedData["Soft Skills"].length > 0 && (
+                    <View style={styles.skillSubsection}>
+                      <Text style={styles.skillSubtitle}>Soft Skills</Text>
+                      <View style={styles.skillsContainer}>
+                        {parsedData["Soft Skills"].map((skill, index) => (
+                          <View key={index} style={[styles.skillTag, styles.softSkillTag]}>
+                            <Text style={[styles.skillText, styles.softSkillText]}>{skill}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {/* If we only have general skills (backward compatibility) */}
+                  {parsedData.Skills && parsedData.Skills.length > 0 && 
+                   (!parsedData["Technical Skills"] || parsedData["Technical Skills"].length === 0) && 
+                   (!parsedData["Soft Skills"] || parsedData["Soft Skills"].length === 0) && (
+                    <View style={styles.skillsContainer}>
+                      {parsedData.Skills.map((skill, index) => (
+                        <View key={index} style={styles.skillTag}>
+                          <Text style={styles.skillText}>{skill}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Social Links */}
+              {(parsedData["LinkedIn Profile"] || parsedData["GitHub Profile"] || parsedData["Portfolio URL"]) && (
+                <View style={styles.dataSection}>
+                  <Text style={styles.sectionTitle}>Social Links</Text>
+                  <View style={styles.socialLinksContainer}>
+                    {parsedData["LinkedIn Profile"] && (
+                      <View style={styles.socialLinkItem}>
+                        <Ionicons name="logo-linkedin" size={16} color="#0077b5" />
+                        <Text style={styles.socialLinkText}>LinkedIn</Text>
+                      </View>
+                    )}
+                    {parsedData["GitHub Profile"] && (
+                      <View style={styles.socialLinkItem}>
+                        <Ionicons name="logo-github" size={16} color="#333" />
+                        <Text style={styles.socialLinkText}>GitHub</Text>
+                      </View>
+                    )}
+                    {parsedData["Portfolio URL"] && (
+                      <View style={styles.socialLinkItem}>
+                        <Ionicons name="globe-outline" size={16} color="#059669" />
+                        <Text style={styles.socialLinkText}>Portfolio</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               )}
@@ -446,13 +798,86 @@ const SeekerProfile = () => {
                 color="#d1d5db"
               />
               <Text style={styles.emptyStateText}>
-                Upload a resume to see parsed data here
+                Upload a resume below to see your professional profile here
               </Text>
             </View>
           )}
         </View>
 
-        {/* Sign Out Section - Removed since we added it to header */}
+        {/* Resume Upload Card - Now appears below parsed data */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="cloud-upload-outline" size={20} color="#2563eb" />
+            <Text style={styles.cardTitle}>
+              {parsedData ? "Update Resume" : "Upload Resume"}
+            </Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            {parsedData 
+              ? "Upload a new resume to update your professional information"
+              : "Select your resume file to extract professional information"
+            }
+          </Text>
+
+          {/* File Upload Area */}
+          <TouchableOpacity style={styles.uploadArea} onPress={pickDocument}>
+            <View style={styles.uploadIcon}>
+              <Ionicons name="cloud-upload-outline" size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.uploadTitle}>
+              {parsedData ? "Upload new resume" : "Upload your resume"}
+            </Text>
+            <Text style={styles.uploadDescription}>
+              Tap here to select your resume file
+            </Text>
+            <Text style={styles.uploadSubtext}>
+              Supports PDF, DOC, DOCX files up to 5MB
+            </Text>
+            <View style={styles.chooseFileButton}>
+              <Text style={styles.chooseFileText}>Choose File</Text>
+            </View>
+
+            {selectedFile && (
+              <View style={styles.selectedFile}>
+                <Text style={styles.selectedFileName}>{selectedFile.name}</Text>
+                <Text style={styles.selectedFileSize}>
+                  {selectedFile.size
+                    ? (selectedFile.size / 1024 / 1024).toFixed(2) + " MB"
+                    : "Unknown size"}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Upload Button */}
+          <TouchableOpacity
+            style={[
+              styles.uploadButton,
+              (!selectedFile || !userId || !userRole || isUploading) &&
+                styles.uploadButtonDisabled,
+            ]}
+            onPress={handleUpload}
+            disabled={!selectedFile || !userId || !userRole || isUploading}
+          >
+            {isUploading ? (
+              <View style={styles.uploadButtonContent}>
+                <ActivityIndicator size="small" color="#ffffff" />
+                <Text style={styles.uploadButtonText}>Processing...</Text>
+              </View>
+            ) : (
+              <View style={styles.uploadButtonContent}>
+                <Ionicons
+                  name="cloud-upload-outline"
+                  size={16}
+                  color="#ffffff"
+                />
+                <Text style={styles.uploadButtonText}>
+                  {parsedData ? "Update Resume" : "Upload Resume"}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -522,13 +947,56 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 8,
+  },
+  cardHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  editButton: {
+    backgroundColor: "#dbeafe",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  editButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#2563eb",
+  },
+  saveButton: {
+    backgroundColor: "#059669",
+  },
+  saveButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#ffffff",
+  },
+  cancelButton: {
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  cancelButtonText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#374751",
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#111827",
     marginLeft: 8,
+    flex: 1,
   },
   cardDescription: {
     fontSize: 14,
@@ -536,6 +1004,66 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
   },
+  // New styles for editing functionality
+  editableSection: {
+    gap: 12,
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374751",
+    marginBottom: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#ffffff",
+    fontSize: 14,
+    color: "#111827",
+  },
+  editableSkillsContainer: {
+    gap: 8,
+  },
+  editableSkillItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  skillInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 6,
+    padding: 8,
+    backgroundColor: "#ffffff",
+    fontSize: 12,
+  },
+  removeSkillButton: {
+    padding: 4,
+  },
+  addSkillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#f8fafc",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderStyle: "dashed",
+    gap: 4,
+    marginTop: 4,
+  },
+  addSkillText: {
+    fontSize: 12,
+    color: "#2563eb",
+    fontWeight: "500",
+  },
+  // Existing styles continue...
   uploadArea: {
     borderWidth: 2,
     borderColor: "#d1d5db",
@@ -606,56 +1134,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#059669",
   },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#374751",
-    marginBottom: 8,
-  },
-  selectInput: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-  },
-  selectText: {
-    fontSize: 14,
-    color: "#111827",
-  },
-  placeholder: {
-    color: "#9ca3af",
-  },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    backgroundColor: "#ffffff",
-    marginTop: 4,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  dropdownItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  dropdownText: {
-    fontSize: 14,
-    color: "#111827",
-  },
   uploadButton: {
     backgroundColor: "#2563eb",
     borderRadius: 8,
@@ -676,8 +1154,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 8,
   },
+  // Enhanced styles for better layout
+  infoContainer: {
+    gap: 6,
+  },
+  skillSubsection: {
+    marginBottom: 16,
+  },
+  skillSubtitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  socialLinksContainer: {
+    gap: 8,
+  },
   parsedDataContainer: {
-    maxHeight: 400,
+    // Remove maxHeight to show all content
   },
   successIndicator: {
     flexDirection: "row",
@@ -786,10 +1282,55 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
   },
+  // New styles for enhanced display
+  inputRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  checkboxContainer: {
+    marginTop: 8,
+  },
+  checkbox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#374751",
+  },
+  technicalSkillTag: {
+    backgroundColor: "#dbeafe",
+    borderColor: "#bfdbfe",
+    borderWidth: 1,
+  },
+  technicalSkillText: {
+    color: "#1e40af",
+  },
+  softSkillTag: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#d1fae5",
+    borderWidth: 1,
+  },
+  softSkillText: {
+    color: "#065f46",
+  },
+  socialLinkItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+    paddingVertical: 4,
+  },
+  socialLinkText: {
+    fontSize: 14,
+    color: "#374751",
+    flex: 1,
+  },
   emptyStateText: {
     fontSize: 14,
     color: "#9ca3af",
     marginTop: 12,
     textAlign: "center",
   },
-});
+})

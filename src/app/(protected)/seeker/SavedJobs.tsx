@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -11,7 +12,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@clerk/clerk-expo";
 
 export interface SalaryRange {
   min: number;
@@ -39,33 +39,109 @@ export interface Job {
   skills_required: string[];
   benefits: string[];
   is_active: boolean;
-  employer_id: string; // Clerk ID of employer
-  posted_at: string;   // ISO date string
-  expires_at: string;  // ISO date string
+  employer_id: string;
+  posted_at: string;
+  expires_at: string;
+  // Additional properties for display
+  company?: string;
+  matchPercentage?: number;
+  tags?: string[];
+  companyDescription?: string;
+  type?: string;
+  postedTime?: string;
+  hrContact?: {
+    name: string;
+    position: string;
+    email: string;
+    phone: string;
+  };
 }
+
 const { width } = Dimensions.get("window");
 
 const SavedJobs = () => {
-  const {userId} = useAuth()
-  // Mock saved jobs data - in real app, this would come from your state management
-
+  const { userId } = useAuth();
   const [savedJobs, setSavedJobs] = useState<Job[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showJobModal, setShowJobModal] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
+  // Mock data to match the image exactly
+  const mockJobs: Job[] = [
+    {
+      _id: "1",
+      title: "Frontend Developer",
+      description: "We are looking for a skilled frontend developer proficient in React Native and modern Javascript frameworks.",
+      requirements: ["3+ years React Native experience", "TypeScript proficiency", "UI/UX design sense"],
+      responsibilities: ["Develop mobile applications", "Collaborate with design team", "Code reviews"],
+      employment_type: "full_time",
+      salary: { min: 60000, max: 80000, currency: "USD", is_public: true },
+      location: { city: "Remote", country: "USA", remote: true },
+      skills_required: ["React", "Native", "JavaScript"],
+      benefits: ["Health insurance", "Remote work", "Flexible hours"],
+      is_active: true,
+      employer_id: "emp1",
+      posted_at: "2025-01-15",
+      expires_at: "2025-02-15",
+      company: "Tech Corp",
+      matchPercentage: 85,
+      tags: ["React", "Native", "JavaScript", "+1 more"],
+      companyDescription: "Leading technology company focused on mobile solutions.",
+      type: "Full-time",
+      postedTime: "2 days ago",
+      hrContact: {
+        name: "John Smith",
+        position: "HR Manager",
+        email: "john@techcorp.com",
+        phone: "+1-555-0123"
+      }
+    },
+    {
+      _id: "2",
+      title: "Mobile App Developer",
+      description: "Build cutting-edge mobile applications using React Native and Flutter. Work with a dynamic team on innovative projects.",
+      requirements: ["5+ years mobile development", "React Native & Flutter", "API integration experience"],
+      responsibilities: ["Mobile app development", "Code optimization", "Team collaboration"],
+      employment_type: "full_time",
+      salary: { min: 85000, max: 105000, currency: "USD", is_public: true },
+      location: { city: "San Francisco", state: "CA", country: "USA", remote: false },
+      skills_required: ["React Native", "Flutter", "iOS"],
+      benefits: ["Health insurance", "Stock options", "Gym membership"],
+      is_active: true,
+      employer_id: "emp2",
+      posted_at: "2025-01-10",
+      expires_at: "2025-02-10",
+      company: "Innovation Labs",
+      matchPercentage: 91,
+      tags: ["React Native", "Flutter", "iOS", "+1 more"],
+      companyDescription: "Innovative startup creating the next generation of mobile experiences.",
+      type: "Full-time",
+      postedTime: "1 week ago",
+      hrContact: {
+        name: "Sarah Johnson",
+        position: "Talent Acquisition",
+        email: "sarah@innovationlabs.com",
+        phone: "+1-555-0456"
+      }
+    }
+  ];
+
   useEffect(() => {
     const fetchLikedJobs = async () => {
       try {
         setLoading(true);
-        // ✅ get Clerk ID (depends on your auth setup)
-        const clerkId = userId ;
-        // ✅ call your FastAPI backend
+        // For demo purposes, using mock data
+        // Replace this with your actual API call
+        setSavedJobs(mockJobs);
+        
+        /* 
+        // Uncomment and modify for real API integration
+        const clerkId = userId;
         const response = await fetch(
           `https://6ee42c9f2910.ngrok-free.app/api/swipes/like/${clerkId}`,
           {
-            method:"GET",
-            headers:{
+            method: "GET",
+            headers: {
               "Content-Type": "application/json"
             }
           }
@@ -76,17 +152,19 @@ const SavedJobs = () => {
         }
 
         const data: Job[] = await response.json();
-        console.log(data)
         setSavedJobs(data);
+        */
       } catch (error) {
         console.error("Error fetching liked jobs:", error);
+        // Fallback to mock data
+        setSavedJobs(mockJobs);
       } finally {
         setLoading(false);
       }
     };
 
     fetchLikedJobs();
-  }, []);
+  }, [userId]);
 
   const handleJobPress = (job: Job) => {
     setSelectedJob(job);
@@ -124,6 +202,7 @@ const SavedJobs = () => {
   };
 
   const handleContactHR = (hrContact: Job['hrContact']) => {
+    if (!hrContact) return;
     Alert.alert(
       "Contact HR",
       `Contact ${hrContact.name}?`,
@@ -135,6 +214,15 @@ const SavedJobs = () => {
     );
   };
 
+  const formatSalary = (salary: SalaryRange) => {
+    return `$${salary.min/1000}k - $${salary.max/1000}k`;
+  };
+
+  const formatLocation = (location: Location) => {
+    if (location.remote) return "Remote";
+    return location.state ? `${location.city}, ${location.state}` : location.city;
+  };
+
   const renderJobCard = (job: Job) => (
     <TouchableOpacity
       key={job._id}
@@ -144,29 +232,29 @@ const SavedJobs = () => {
     >
       <View style={styles.cardHeader}>
         <View style={styles.logo}>
-          <Text style={styles.logoText}>{job.company.charAt(0)}</Text>
+          <Text style={styles.logoText}>{job.company?.charAt(0) || 'J'}</Text>
         </View>
         <View style={styles.jobInfo}>
           <Text style={styles.jobTitle}>{job.title}</Text>
-          <Text style={styles.company}>{job.company}</Text>
+          <Text style={styles.company}>{job.company || 'Company'}</Text>
           <View style={styles.jobMeta}>
             <View style={styles.metaItem}>
               <Ionicons name="location-outline" size={14} color="#6b7280" />
-              <Text style={styles.metaText}>{job.location}</Text>
+              <Text style={styles.metaText}>{formatLocation(job.location)}</Text>
             </View>
             <View style={styles.metaItem}>
               <Ionicons name="cash-outline" size={14} color="#6b7280" />
-              <Text style={styles.metaText}>{job.salary}</Text>
+              <Text style={styles.metaText}>{formatSalary(job.salary)}</Text>
             </View>
           </View>
         </View>
         <View style={styles.cardActions}>
           <View style={styles.matchBadge}>
-            <Text style={styles.matchText}>{job.matchPercentage}%</Text>
+            <Text style={styles.matchText}>{job.matchPercentage || 0}%</Text>
           </View>
           <TouchableOpacity
             style={styles.unsaveButton}
-            onPress={() => handleUnsaveJob(job.id)}
+            onPress={() => handleUnsaveJob(job._id)}
           >
             <Ionicons name="bookmark" size={20} color="#ef4444" />
           </TouchableOpacity>
@@ -178,13 +266,13 @@ const SavedJobs = () => {
       </Text>
       
       <View style={styles.tags}>
-        {job.tags.slice(0, 3).map((tag, index) => (
+        {(job.tags || job.skills_required).slice(0, 3).map((tag, index) => (
           <View key={index} style={styles.tag}>
             <Text style={styles.tagText}>{tag}</Text>
           </View>
         ))}
-        {job.tags.length > 3 && (
-          <Text style={styles.moreTagsText}>+{job.tags.length - 3} more</Text>
+        {(job.tags || job.skills_required).length > 3 && (
+          <Text style={styles.moreTagsText}>+{(job.tags || job.skills_required).length - 3} more</Text>
         )}
       </View>
     </TouchableOpacity>
@@ -219,31 +307,31 @@ const SavedJobs = () => {
                 <View style={styles.jobDetails}>
                   <View style={styles.detailItem}>
                     <Ionicons name="location-outline" size={16} color="#6b7280" />
-                    <Text style={styles.detailText}>{selectedJob.location}</Text>
+                    <Text style={styles.detailText}>{formatLocation(selectedJob.location)}</Text>
                   </View>
                   <View style={styles.detailItem}>
                     <Ionicons name="cash-outline" size={16} color="#6b7280" />
-                    <Text style={styles.detailText}>{selectedJob.salary}</Text>
+                    <Text style={styles.detailText}>{formatSalary(selectedJob.salary)}</Text>
                   </View>
                   <View style={styles.detailItem}>
                     <Ionicons name="time-outline" size={16} color="#6b7280" />
-                    <Text style={styles.detailText}>{selectedJob.postedTime}</Text>
+                    <Text style={styles.detailText}>{selectedJob.postedTime || 'Recently'}</Text>
                   </View>
                   <View style={styles.detailItem}>
                     <Ionicons name="briefcase-outline" size={16} color="#6b7280" />
-                    <Text style={styles.detailText}>{selectedJob.type}</Text>
+                    <Text style={styles.detailText}>{selectedJob.type || selectedJob.employment_type}</Text>
                   </View>
                 </View>
               </View>
               <View style={styles.matchBadgeLarge}>
-                <Text style={styles.matchTextLarge}>{selectedJob.matchPercentage}% match</Text>
+                <Text style={styles.matchTextLarge}>{selectedJob.matchPercentage || 0}% match</Text>
               </View>
             </View>
 
             {/* Company Description */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>About Company</Text>
-              <Text style={styles.sectionContent}>{selectedJob.companyDescription}</Text>
+              <Text style={styles.sectionContent}>{selectedJob.companyDescription || 'No company description available.'}</Text>
             </View>
 
             {/* Job Description */}
@@ -278,7 +366,7 @@ const SavedJobs = () => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Required Skills</Text>
               <View style={styles.skillTags}>
-                {selectedJob.tags.map((tag, index) => (
+                {(selectedJob.tags || selectedJob.skills_required).map((tag, index) => (
                   <View key={index} style={styles.skillTag}>
                     <Text style={styles.skillTagText}>{tag}</Text>
                   </View>
@@ -287,26 +375,28 @@ const SavedJobs = () => {
             </View>
 
             {/* HR Contact */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>HR Contact</Text>
-              <TouchableOpacity
-                style={styles.hrCard}
-                onPress={() => handleContactHR(selectedJob.hrContact)}
-              >
-                <View style={styles.hrAvatar}>
-                  <Text style={styles.hrAvatarText}>
-                    {selectedJob.hrContact.name.split(' ').map(n => n[0]).join('')}
-                  </Text>
-                </View>
-                <View style={styles.hrInfo}>
-                  <Text style={styles.hrName}>{selectedJob.hrContact.name}</Text>
-                  <Text style={styles.hrPosition}>{selectedJob.hrContact.position}</Text>
-                  <Text style={styles.hrEmail}>{selectedJob.hrContact.email}</Text>
-                  <Text style={styles.hrPhone}>{selectedJob.hrContact.phone}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
-              </TouchableOpacity>
-            </View>
+            {selectedJob.hrContact && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>HR Contact</Text>
+                <TouchableOpacity
+                  style={styles.hrCard}
+                  onPress={() => handleContactHR(selectedJob.hrContact)}
+                >
+                  <View style={styles.hrAvatar}>
+                    <Text style={styles.hrAvatarText}>
+                      {selectedJob.hrContact.name.split(' ').map(n => n[0]).join('')}
+                    </Text>
+                  </View>
+                  <View style={styles.hrInfo}>
+                    <Text style={styles.hrName}>{selectedJob.hrContact.name}</Text>
+                    <Text style={styles.hrPosition}>{selectedJob.hrContact.position}</Text>
+                    <Text style={styles.hrEmail}>{selectedJob.hrContact.email}</Text>
+                    <Text style={styles.hrPhone}>{selectedJob.hrContact.phone}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.modalFooterSpacer} />
           </ScrollView>
@@ -336,7 +426,11 @@ const SavedJobs = () => {
         </View>
       </View>
 
-      {savedJobs.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>Loading...</Text>
+        </View>
+      ) : savedJobs.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="bookmark-outline" size={64} color="#d1d5db" />
           <Text style={styles.emptyTitle}>No Saved Jobs</Text>
@@ -364,7 +458,7 @@ export default SavedJobs;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#1e3a5f", // Dark blue background to match image
   },
   header: {
     flexDirection: "row",
@@ -372,14 +466,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#1e3a5f", // Match container background
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1f2937",
+    color: "#ffffff", // White text for dark background
     marginRight: 8,
   },
   headerBadge: {
@@ -404,13 +496,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#374151",
+    color: "#ffffff",
     marginTop: 16,
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#9ca3af",
     textAlign: "center",
     lineHeight: 20,
   },
@@ -430,9 +522,9 @@ const styles = StyleSheet.create({
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 5,
   },
   cardHeader: {
     flexDirection: "row",

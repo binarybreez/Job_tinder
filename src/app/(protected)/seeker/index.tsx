@@ -1,672 +1,1586 @@
-import { useAuth } from "@clerk/clerk-expo";
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as Location from 'expo-location';
 import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { GestureHandlerRootView, PanGestureHandler } from "react-native-gesture-handler";
+import Animated, {
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming
+} from "react-native-reanimated";
 
-// Add your API base URL
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-
-interface Application {
+interface Job {
   id: string;
-  company_name: string;
-  position_title: string;
-  application_type: 'internship' | 'job';
-  application_date: string;
-  status: 'applied' | 'under_review' | 'interview_scheduled' | 'rejected' | 'accepted';
-  keyword_match_percentage: number;
-  matched_keywords: string[];
-  total_keywords: number;
-  job_description: string;
-  application_platform: string;
-  notes?: string;
-  interview_date?: string;
-  salary_range?: string;
+  title: string;
+  company: string;
   location: string;
-  remote_option: boolean;
+  salary: string;
+  matchPercentage: number;
+  type: string;
+  description: string;
+  requirements: string[];
+  benefits: string[];
+  tags: string[];
+  postedTime: string;
+  companySize: string;
+  experience: string;
 }
 
-const ApplicationsIndex = () => {
-  const { userId, getToken } = useAuth();
-  const router = useRouter();
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'internship' | 'job'>('all');
-  const [sortBy, setSortBy] = useState<'percentage' | 'date' | 'company'>('percentage');
+interface JobSwipeCardProps {
+  job: Job;
+  onSwipeLeft: () => void;
+  onSwipeRight: () => void;
+  onBookmark: () => void;
+  isTop: boolean;
+  isSaved: boolean;
+}
+
+const { width, height } = Dimensions.get("window");
+const SWIPE_THRESHOLD = 100;
+
+export default function SeekerJobs() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [showOverlay, setShowOverlay] = useState(true);
+  
+  const [selectedLocation, setSelectedLocation] = useState<string>('All Locations');
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [userLocation, setUserLocation] = useState<string>('');
+  const [isLocationLoading, setIsLocationLoading] = useState(false);
+  
+  const locations = [
+    'All Locations',
+    'Live Location',
+    'Remote',
+    'San Francisco, CA',
+    'New York, NY',
+    'Austin, TX',
+    'Seattle, WA',
+    'Los Angeles, CA',
+    'Chicago, IL',
+    'Boston, MA',
+    'Denver, CO'
+  ];
+
+  const overlayOpacity = useSharedValue(1);
+  const leftArrowTranslateX = useSharedValue(0);
+  const rightArrowTranslateX = useSharedValue(0);
+  const leftArrowOpacity = useSharedValue(1);
+  const rightArrowOpacity = useSharedValue(1);
+  const textOpacity = useSharedValue(1);
+
+  const leftTutorialOpacity = useSharedValue(0);
+  const rightTutorialOpacity = useSharedValue(0);
+
+  const leftScreenOpacity = useSharedValue(0);
+  const rightScreenOpacity = useSharedValue(0);
+  const leftScreenScale = useSharedValue(0.8);
+  const rightScreenScale = useSharedValue(0.8);
+
+  const fallbackJobsData: Job[] = [
+    {
+      id: "1",
+      title: "Senior Frontend Developer",
+      company: "TechCorp Industries",
+      location: "Remote / San Francisco, CA",
+      salary: "$120k - $160k",
+      matchPercentage: 95,
+      type: "Full-time",
+      experience: "5+ years",
+      companySize: "500-1000 employees",
+      description: "Build cutting-edge web applications using React, TypeScript, and modern CSS frameworks. Collaborate with designers and product teams to deliver exceptional user experiences while mentoring junior developers.",
+      requirements: [
+        "5+ years of frontend development experience",
+        "Expert knowledge of React and TypeScript",
+        "Experience with modern build tools and CI/CD",
+        "Strong understanding of responsive design",
+        "Experience with testing frameworks (Jest, Cypress)",
+        "Knowledge of accessibility standards"
+      ],
+      benefits: [
+        "Competitive salary + equity",
+        "Flexible work arrangements",
+        "Health, dental, and vision insurance",
+        "401k matching up to 6%",
+        "Professional development budget",
+        "Unlimited PTO policy"
+      ],
+      tags: ["React", "TypeScript", "JavaScript", "CSS", "Git", "Agile"],
+      postedTime: "2 days ago",
+    },
+    {
+      id: "2",
+      title: "Backend Engineering Lead",
+      company: "DataFlow Systems",
+      location: "New York, NY / Hybrid",
+      salary: "$140k - $180k",
+      matchPercentage: 88,
+      type: "Full-time",
+      experience: "7+ years",
+      companySize: "200-500 employees",
+      description: "Lead engineering team building scalable backend systems handling millions of requests. Work with Node.js, Python, PostgreSQL, and AWS on microservices and distributed systems.",
+      requirements: [
+        "7+ years of backend development experience",
+        "Strong leadership and mentoring skills",
+        "Expertise in Node.js, Python, or similar languages",
+        "Experience with microservices and distributed systems",
+        "Knowledge of database design and optimization",
+        "AWS or other cloud platform experience"
+      ],
+      benefits: [
+        "Leadership role with growth opportunities",
+        "Stock options and performance bonuses",
+        "Comprehensive healthcare coverage",
+        "Flexible hybrid work model",
+        "Learning and conference budget",
+        "Team building activities and events"
+      ],
+      tags: ["Node.js", "Python", "AWS", "PostgreSQL", "Docker", "Leadership"],
+      postedTime: "1 week ago",
+    },
+    {
+      id: "3",
+      title: "Mobile App Developer",
+      company: "Innovation Labs Inc",
+      location: "Austin, TX",
+      salary: "$95k - $125k",
+      matchPercentage: 92,
+      type: "Full-time",
+      experience: "4+ years",
+      companySize: "50-100 employees",
+      description: "Develop mobile apps for millions of users using React Native and native iOS/Android technologies. Work in agile environment with designers and product managers at a fast-growing startup.",
+      requirements: [
+        "4+ years of mobile development experience",
+        "Proficiency in React Native and native development",
+        "Experience with iOS and Android platforms",
+        "Knowledge of mobile app deployment processes",
+        "Understanding of mobile UI/UX best practices",
+        "Experience with state management libraries"
+      ],
+      benefits: [
+        "Competitive salary and equity package",
+        "Flexible working hours",
+        "Health and wellness programs",
+        "Professional development opportunities",
+        "Modern office with great amenities",
+        "Company-sponsored team outings"
+      ],
+      tags: ["React Native", "iOS", "Android", "Flutter", "Mobile", "JavaScript"],
+      postedTime: "3 days ago",
+    },
+    {
+      id: "4",
+      title: "DevOps Engineer",
+      company: "CloudScale Solutions",
+      location: "Seattle, WA / Remote",
+      salary: "$110k - $145k",
+      matchPercentage: 78,
+      type: "Full-time",
+      experience: "3+ years",
+      companySize: "100-200 employees",
+      description: "Scale infrastructure and improve deployments using Kubernetes, Docker, and AWS. Design CI/CD pipelines serving millions of users in a fully remote environment.",
+      requirements: [
+        "3+ years of DevOps/Infrastructure experience",
+        "Strong knowledge of Kubernetes and Docker",
+        "Experience with AWS, Azure, or GCP",
+        "Proficiency in Infrastructure as Code (Terraform)",
+        "Understanding of CI/CD best practices",
+        "Monitoring and logging experience"
+      ],
+      benefits: [
+        "Remote-first company culture",
+        "Competitive compensation package",
+        "Health, dental, vision insurance",
+        "Home office setup allowance",
+        "Annual learning stipend",
+        "Flexible vacation policy"
+      ],
+      tags: ["DevOps", "Kubernetes", "AWS", "Docker", "Terraform", "CI/CD"],
+      postedTime: "2 days ago",
+    },
+    {
+      id: "5",
+      title: "Full Stack Developer",
+      company: "StartupHub",
+      location: "Remote",
+      salary: "$85k - $115k",
+      matchPercentage: 87,
+      type: "Full-time",
+      experience: "3+ years",
+      companySize: "20-50 employees",
+      description: "Build innovative web applications using React and Node.js. Work across the full stack in a dynamic startup solving real-world problems.",
+      requirements: [
+        "3+ years of full stack development experience",
+        "Proficiency in React and Node.js",
+        "Experience with databases (PostgreSQL, MongoDB)",
+        "Knowledge of cloud platforms",
+        "Understanding of agile methodologies"
+      ],
+      benefits: [
+        "100% remote work",
+        "Equity participation",
+        "Flexible schedule",
+        "Health insurance",
+        "Professional development budget"
+      ],
+      tags: ["React", "Node.js", "Full Stack", "Remote", "Startup"],
+      postedTime: "1 day ago",
+    }
+  ];
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [swipedJobs, setSwipedJobs] = useState<{ job: Job; action: string }[]>([]);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
+
+  const filterJobsByLocation = (location: string, jobsToFilter?: Job[], userLoc?: string) => {
+    const jobsData = jobsToFilter || allJobs;
+    
+    if (location === 'All Locations') {
+      setJobs(jobsData);
+    } else if (location === 'Live Location' && userLoc) {
+      const filteredJobs = jobsData.filter(job => 
+        job.location.toLowerCase().includes(userLoc.toLowerCase()) ||
+        job.location.toLowerCase().includes('remote')
+      );
+      setJobs(filteredJobs);
+    } else {
+      const filteredJobs = jobsData.filter(job => 
+        job.location.toLowerCase().includes(location.toLowerCase()) ||
+        (location === 'Remote' && job.location.toLowerCase().includes('remote'))
+      );
+      setJobs(filteredJobs);
+    }
+  };
 
   useEffect(() => {
-    if (userId) {
-      fetchApplications();
+    if (showOverlay) {
+      overlayOpacity.value = 1;
+      leftArrowTranslateX.value = 0;
+      rightArrowTranslateX.value = 0;
+      
+      startOverlayAnimation();
+      
+      const timer = setTimeout(() => {
+        hideOverlay();
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
-  }, [userId, filter, sortBy]);
+  }, [showOverlay]);
+
+  const startOverlayAnimation = () => {
+    leftTutorialOpacity.value = withTiming(0.4, { duration: 300 });
+    rightTutorialOpacity.value = withTiming(0.4, { duration: 300 });
+    
+    const animateArrows = () => {
+      leftArrowTranslateX.value = withSequence(
+        withTiming(-40, { duration: 600 }),
+        withTiming(0, { duration: 600 })
+      );
+      rightArrowTranslateX.value = withSequence(
+        withTiming(40, { duration: 600 }),
+        withTiming(0, { duration: 600 })
+      );
+    };
+
+    animateArrows();
+    
+    const intervalId = setInterval(animateArrows, 1200);
+    
+    setTimeout(() => {
+      clearInterval(intervalId);
+    }, 2500);
+  };
+
+  const hideOverlay = () => {
+    leftTutorialOpacity.value = withTiming(0, { duration: 400 });
+    rightTutorialOpacity.value = withTiming(0, { duration: 400 });
+    overlayOpacity.value = withTiming(0, { duration: 400 }, () => {
+      runOnJS(setShowOverlay)(false);
+    });
+  };
+
+  const triggerHalfScreenAnimation = (direction: 'left' | 'right') => {
+    if (direction === 'left') {
+      leftScreenOpacity.value = withSequence(
+        withTiming(0.8, { duration: 200 }),
+        withTiming(0, { duration: 300 })
+      );
+      leftScreenScale.value = withSequence(
+        withTiming(1, { duration: 200 }),
+        withTiming(0.8, { duration: 300 })
+      );
+    } else {
+      rightScreenOpacity.value = withSequence(
+        withTiming(0.8, { duration: 200 }),
+        withTiming(0, { duration: 300 })
+      );
+      rightScreenScale.value = withSequence(
+        withTiming(1, { duration: 200 }),
+        withTiming(0.8, { duration: 300 })
+      );
+    }
+  };
 
   const fetchApplications = async () => {
     try {
-      const token = await getToken();
-      const response = await fetch(
-        `${API_BASE_URL}/applications?clerk_id=${userId}&filter=${filter}&sort_by=${sortBy}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        // Sort by keyword match percentage in descending order
-        const sortedData = data.sort((a: Application, b: Application) => {
-          if (sortBy === 'percentage') {
-            return b.keyword_match_percentage - a.keyword_match_percentage;
-          } else if (sortBy === 'date') {
-            return new Date(b.application_date).getTime() - new Date(a.application_date).getTime();
-          } else {
-            return a.company_name.localeCompare(b.company_name);
-          }
-        });
-        setApplications(sortedData);
-      } else {
-        Alert.alert('Error', 'Failed to fetch applications');
-      }
-    } catch (error) {
-      console.error('Error fetching applications:', error);
-      Alert.alert('Error', 'Failed to fetch applications');
+      setIsLoading(true);
+      setError(null);
+      
+      setApplications(fallbackJobsData);
+      setAllJobs(fallbackJobsData);
+      filterJobsByLocation('All Locations', fallbackJobsData);
+      
+    } catch (err) {
+      console.error('Error fetching applications:', err);
+      setError('Failed to load job applications. Using offline data.');
+      setApplications(fallbackJobsData);
+      setAllJobs(fallbackJobsData);
+      filterJobsByLocation('All Locations', fallbackJobsData);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setIsLoading(false);
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
+  const fetchLiveLocation = async () => {
+    try {
+      setIsLocationLoading(true);
+      
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to find jobs near you');
+        setIsLocationLoading(false);
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = location.coords;
+      
+      try {
+        const reverseGeocodeResult = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+
+        if (reverseGeocodeResult && reverseGeocodeResult.length > 0) {
+          const result = reverseGeocodeResult[0];
+          const city = result.city || result.subregion || 'Unknown City';
+          const region = result.region || result.country || '';
+          const locationString = region ? `${city}, ${region}` : city;
+          
+          setUserLocation(locationString);
+          setSelectedLocation('Live Location');
+          setShowLocationModal(false);
+          
+          filterJobsByLocation('Live Location', allJobs, locationString);
+          
+          Alert.alert(
+            'Location Found! 📍', 
+            `Jobs filtered for: ${locationString}`,
+            [{ text: 'Great!', style: 'default' }]
+          );
+        } else {
+          throw new Error('No location data returned');
+        }
+      } catch (geocodingError) {
+        console.error('Geocoding error:', geocodingError);
+        const locationString = `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+        setUserLocation(locationString);
+        setSelectedLocation('Live Location');
+        setShowLocationModal(false);
+        filterJobsByLocation('Live Location', allJobs, locationString);
+        
+        Alert.alert(
+          'Location Found! 📍', 
+          `Jobs filtered for your location`,
+          [{ text: 'Great!', style: 'default' }]
+        );
+      }
+    } catch (error: any) {
+      console.error('Location error:', error);
+      let errorMessage = 'Unable to get your location. ';
+      
+      if (error.code) {
+        switch (error.code) {
+          case 'E_LOCATION_PERMISSION_DENIED':
+            errorMessage += 'Please enable location permissions in settings.';
+            break;
+          case 'E_LOCATION_UNAVAILABLE':
+            errorMessage += 'Location services are unavailable.';
+            break;
+          case 'E_LOCATION_TIMEOUT':
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'Please try again or select a location manually.';
+            break;
+        }
+      }
+      
+      Alert.alert('Location Error', errorMessage);
+    } finally {
+      setIsLocationLoading(false);
+    }
+  };
+
+  const handleLocationSelect = (location: string) => {
+    if (location === 'Live Location') {
+      fetchLiveLocation();
+    } else {
+      setSelectedLocation(location);
+      setShowLocationModal(false);
+      filterJobsByLocation(location, allJobs);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const retryFetch = () => {
     fetchApplications();
   };
 
-  const getStatusColor = (status: Application['status']) => {
-    switch (status) {
-      case 'applied': return '#3b82f6';
-      case 'under_review': return '#f59e0b';
-      case 'interview_scheduled': return '#8b5cf6';
-      case 'accepted': return '#10b981';
-      case 'rejected': return '#ef4444';
-      default: return '#6b7280';
+  const handleSwipeLeft = (job: Job) => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    
+    triggerHalfScreenAnimation('left');
+    
+    setTimeout(() => {
+      setJobs((prev) => prev.slice(1));
+      setSwipedJobs((prev) => [...prev, { job, action: "rejected" }]);
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  const handleSwipeRight = (job: Job) => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    
+    triggerHalfScreenAnimation('right');
+    
+    setTimeout(() => {
+      setJobs((prev) => prev.slice(1));
+      setSwipedJobs((prev) => [...prev, { job, action: "liked" }]);
+      Alert.alert("Job Liked! 💚", `You liked ${job.title} at ${job.company}`, [
+        { text: "Great!", style: "default" }
+      ]);
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  const handleBookmark = (job: Job) => {
+    const isCurrentlySaved = savedJobs.has(job.id);
+    
+    if (isCurrentlySaved) {
+      setSavedJobs(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(job.id);
+        return newSet;
+      });
+      Alert.alert("Removed 📝", `${job.title} has been removed from your bookmarks.`);
+    } else {
+      setSavedJobs(prev => new Set(prev).add(job.id));
+      Alert.alert("Bookmarked! 🔖", `${job.title} has been saved to your bookmarks.`);
     }
   };
 
-  const getStatusText = (status: Application['status']) => {
-    return status.replace('_', ' ').toUpperCase();
+  const resetJobs = () => {
+    const dataToReset = allJobs.length > 0 ? allJobs : fallbackJobsData;
+    filterJobsByLocation(selectedLocation, dataToReset);
+    setSwipedJobs([]);
+    setIsAnimating(false);
+    setSavedJobs(new Set());
+    setShowOverlay(true);
+    overlayOpacity.value = 1;
   };
 
-  const getMatchPercentageColor = (percentage: number) => {
-    if (percentage >= 80) return '#10b981'; // Green
-    if (percentage >= 60) return '#f59e0b'; // Amber
-    if (percentage >= 40) return '#f97316'; // Orange
-    return '#ef4444'; // Red
-  };
+  const overlayAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
+  }));
 
-  const handleApplicationPress = (application: Application) => {
-    // Show application details in an alert for now
-    // You can replace this with navigation to an existing route or create the application-details route
-    Alert.alert(
-      'Application Details',
-      `Company: ${application.company_name}\nPosition: ${application.position_title}\nStatus: ${getStatusText(application.status)}\nMatch: ${application.keyword_match_percentage}%\nLocation: ${application.location}${application.remote_option ? ' • Remote' : ''}\nPlatform: ${application.application_platform}\nDate Applied: ${new Date(application.application_date).toLocaleDateString()}${application.salary_range ? `\nSalary: ${application.salary_range}` : ''}${application.notes ? `\nNotes: ${application.notes}` : ''}`,
-      [
-        {
-          text: 'Close',
-          style: 'cancel'
-        },
-        {
-          text: 'Track Application',
-          onPress: () => trackApplication(application.id)
-        }
-      ]
-    );
-  };
+  const leftArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: leftArrowTranslateX.value }],
+    opacity: leftArrowOpacity.value,
+  }));
 
-  const trackApplication = async (applicationId: string) => {
-    try {
-      const token = await getToken();
-      const response = await fetch(
-        `${API_BASE_URL}/applications/${applicationId}/track`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+  const rightArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: rightArrowTranslateX.value }],
+    opacity: rightArrowOpacity.value,
+  }));
 
-      if (response.ok) {
-        const trackingData = await response.json();
-        Alert.alert('Tracking Info', `Application tracked successfully. Status: ${trackingData.status}`);
-        fetchApplications(); // Refresh data
-      } else {
-        Alert.alert('Error', 'Failed to track application');
-      }
-    } catch (error) {
-      console.error('Error tracking application:', error);
-      Alert.alert('Error', 'Failed to track application');
-    }
-  };
+  const textAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+  }));
 
-  const renderApplicationItem = ({ item }: { item: Application }) => (
-    <TouchableOpacity 
-      style={styles.applicationCard}
-      onPress={() => handleApplicationPress(item)}
-      activeOpacity={0.7}
-    >
-      {/* Header Row */}
-      <View style={styles.headerRow}>
-        <View style={styles.companyInfo}>
-          <Text style={styles.companyName}>{item.company_name}</Text>
-          <Text style={styles.positionTitle}>{item.position_title}</Text>
-        </View>
-        <View style={styles.typeAndStatus}>
-          <View style={[styles.typeBadge, { 
-            backgroundColor: item.application_type === 'internship' ? '#dbeafe' : '#fef3c7' 
-          }]}>
-            <Text style={[styles.typeText, { 
-              color: item.application_type === 'internship' ? '#1e40af' : '#92400e' 
-            }]}>
-              {item.application_type.toUpperCase()}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>{getStatusText(item.status)}</Text>
-          </View>
-        </View>
-      </View>
+  const leftTutorialAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: leftTutorialOpacity.value,
+  }));
 
-      {/* Keywords Match Row */}
-      <View style={styles.keywordRow}>
-        <View style={styles.matchPercentage}>
-          <Text style={styles.matchLabel}>Match:</Text>
-          <Text style={[styles.matchValue, { color: getMatchPercentageColor(item.keyword_match_percentage) }]}>
-            {item.keyword_match_percentage}%
-          </Text>
-        </View>
-        <Text style={styles.keywordCount}>
-          {item.matched_keywords.length}/{item.total_keywords} keywords
-        </Text>
-      </View>
+  const rightTutorialAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: rightTutorialOpacity.value,
+  }));
 
-      {/* Details Row */}
-      <View style={styles.detailsRow}>
-        <View style={styles.locationInfo}>
-          <Ionicons name="location-outline" size={14} color="#6b7280" />
-          <Text style={styles.locationText}>
-            {item.location} {item.remote_option && '• Remote'}
-          </Text>
-        </View>
-        <Text style={styles.dateText}>
-          {new Date(item.application_date).toLocaleDateString()}
-        </Text>
-      </View>
+  const leftScreenAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: leftScreenOpacity.value,
+    transform: [{ scale: leftScreenScale.value }],
+  }));
 
-      {/* Platform and Salary */}
-      <View style={styles.platformRow}>
-        <Text style={styles.platformText}>via {item.application_platform}</Text>
-        {item.salary_range && (
-          <Text style={styles.salaryText}>{item.salary_range}</Text>
-        )}
-      </View>
+  const rightScreenAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: rightScreenOpacity.value,
+    transform: [{ scale: rightScreenScale.value }],
+  }));
 
-      {/* Action Buttons */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity 
-          style={styles.trackButton}
-          onPress={(e) => {
-            e.stopPropagation();
-            trackApplication(item.id);
-          }}
-        >
-          <Ionicons name="eye-outline" size={16} color="#2563eb" />
-          <Text style={styles.trackButtonText}>Track</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.viewButton}
-          onPress={() => handleApplicationPress(item)}
-        >
-          <Ionicons name="arrow-forward-outline" size={16} color="#059669" />
-          <Text style={styles.viewButtonText}>View Details</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Matched Keywords Preview */}
-      <View style={styles.keywordsPreview}>
-        <Text style={styles.keywordsLabel}>Matched Keywords:</Text>
-        <View style={styles.keywordsContainer}>
-          {item.matched_keywords.slice(0, 3).map((keyword, index) => (
-            <View key={index} style={styles.keywordTag}>
-              <Text style={styles.keywordText}>{keyword}</Text>
-            </View>
-          ))}
-          {item.matched_keywords.length > 3 && (
-            <Text style={styles.moreKeywords}>+{item.matched_keywords.length - 3} more</Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Text style={styles.title}>My Applications</Text>
-      
-      {/* Filters */}
-      <View style={styles.filtersRow}>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Type:</Text>
-          <View style={styles.filterButtons}>
-            {['all', 'internship', 'job'].map((filterOption) => (
-              <TouchableOpacity
-                key={filterOption}
-                style={[
-                  styles.filterButton,
-                  filter === filterOption && styles.activeFilterButton
-                ]}
-                onPress={() => setFilter(filterOption as any)}
-              >
-                <Text style={[
-                  styles.filterButtonText,
-                  filter === filterOption && styles.activeFilterButtonText
-                ]}>
-                  {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Sort:</Text>
-          <View style={styles.filterButtons}>
-            {[
-              { key: 'percentage', label: 'Match %' },
-              { key: 'date', label: 'Date' },
-              { key: 'company', label: 'Company' }
-            ].map((sortOption) => (
-              <TouchableOpacity
-                key={sortOption.key}
-                style={[
-                  styles.filterButton,
-                  sortBy === sortOption.key && styles.activeFilterButton
-                ]}
-                onPress={() => setSortBy(sortOption.key as any)}
-              >
-                <Text style={[
-                  styles.filterButtonText,
-                  sortBy === sortOption.key && styles.activeFilterButtonText
-                ]}>
-                  {sortOption.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{applications.length}</Text>
-          <Text style={styles.statLabel}>Total Applications</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>
-            {applications.filter(app => app.application_type === 'internship').length}
-          </Text>
-          <Text style={styles.statLabel}>Internships</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>
-            {applications.filter(app => app.status === 'interview_scheduled').length}
-          </Text>
-          <Text style={styles.statLabel}>Interviews</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  if (loading && applications.length === 0) {
+  if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563eb" />
-          <Text style={styles.loadingText}>Loading applications...</Text>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading job opportunities...</Text>
+        <View style={styles.loadingSpinner}>
+          <Text style={styles.loadingEmoji}>🔄</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={applications}
-        renderItem={renderApplicationItem}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="briefcase-outline" size={64} color="#d1d5db" />
-            <Text style={styles.emptyStateTitle}>No Applications Yet</Text>
-            <Text style={styles.emptyStateText}>
-              Start applying to internships and jobs to see them here
+    <GestureHandlerRootView style={styles.container}>
+      {/* Location Selector - Moved and positioned better */}
+      <View style={styles.locationContainer}>
+        <TouchableOpacity 
+          style={styles.locationSelector} 
+          onPress={() => setShowLocationModal(true)}
+        >
+          <Ionicons name="location-outline" size={14} color="#6b7280" />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {selectedLocation}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color="#6b7280" />
+        </TouchableOpacity>
+      </View>
+      
+      {/* REMOVED: Header with "Industrial Jobs" text - completely removed this section */}
+      
+      {/* MODIFIED: Card container with adjusted positioning - moved higher */}
+      <View style={styles.cardContainer}>
+        {jobs && jobs.length > 0 ? (
+          <>
+            {jobs.length > 1 && (
+              <View style={[styles.card, styles.backgroundCard]}>
+                <JobCardContent job={jobs[1]} />
+              </View>
+            )}
+            <JobSwipeCard
+              key={jobs[0]?.id || 'fallback-0'}
+              job={jobs[0]}
+              isTop={true}
+              isSaved={savedJobs.has(jobs[0]?.id || '')}
+              onSwipeLeft={() => handleSwipeLeft(jobs[0])}
+              onSwipeRight={() => handleSwipeRight(jobs[0])}
+              onBookmark={() => handleBookmark(jobs[0])}
+              onSwipeAnimation={triggerHalfScreenAnimation}
+            />
+          </>
+        ) : (
+          <View style={styles.noJobsContainer}>
+            <Text style={styles.noJobsEmoji}>
+              {selectedLocation === 'All Locations' ? '🎉' : '📍'}
             </Text>
+            <Text style={styles.noJobsTitle}>
+              {selectedLocation === 'All Locations' ? 'All done!' : 'No jobs found'}
+            </Text>
+            <Text style={styles.noJobsSubtitle}>
+              {selectedLocation === 'All Locations' 
+                ? "You've reviewed all available positions" 
+                : selectedLocation === 'Live Location' && userLocation
+                ? `No jobs available in ${userLocation} right now`
+                : `No jobs available in ${selectedLocation} right now`}
+            </Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={resetJobs}>
+              <Text style={styles.primaryButtonText}>
+                {selectedLocation === 'All Locations' ? 'Start Over' : 'Reset & Try Again'}
+              </Text>
+            </TouchableOpacity>
           </View>
-        }
-      />
-    </SafeAreaView>
-  );
-};
+        )}
+      </View>
 
-export default ApplicationsIndex;
+      {/* Show info messages and reset button at bottom */}
+      {(selectedLocation !== 'All Locations' || error || swipedJobs.length > 0) && (
+        <View style={styles.bottomInfo}>
+          {selectedLocation !== 'All Locations' && (
+            <Text style={styles.jobCount}>
+              {jobs.length} job{jobs.length !== 1 ? 's' : ''} in {
+                selectedLocation === 'Live Location' && userLocation 
+                  ? userLocation 
+                  : selectedLocation
+              }
+            </Text>
+          )}
+          
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryButton} onPress={retryFetch}>
+                <Ionicons name="refresh-outline" size={14} color="#3b82f6" />
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {swipedJobs.length > 0 && (
+            <TouchableOpacity style={styles.resetButton} onPress={resetJobs}>
+              <Ionicons name="refresh-outline" size={14} color="#fff" />
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Location Modal */}
+      {showLocationModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.locationModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Location</Text>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setShowLocationModal(false)}
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.locationList} showsVerticalScrollIndicator={false}>
+              {locations.map((location, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.locationItem,
+                    selectedLocation === location && styles.selectedLocationItem,
+                    location === 'Live Location' && isLocationLoading && styles.loadingLocationItem
+                  ]}
+                  onPress={() => handleLocationSelect(location)}
+                  disabled={location === 'Live Location' && isLocationLoading}
+                >
+                  {location === 'Live Location' && isLocationLoading ? (
+                    <Text style={styles.loadingText}>📍</Text>
+                  ) : (
+                    <Ionicons 
+                      name={location === 'Live Location' ? 'locate-outline' : location === 'Remote' ? 'laptop-outline' : 'location-outline'} 
+                      size={18} 
+                      color={selectedLocation === location ? '#3b82f6' : '#6b7280'} 
+                    />
+                  )}
+                  <Text style={[
+                    styles.locationItemText,
+                    selectedLocation === location && styles.selectedLocationText,
+                    location === 'Live Location' && isLocationLoading && styles.loadingLocationText
+                  ]}>
+                    {location === 'Live Location' && userLocation && selectedLocation === 'Live Location'
+                      ? `Live Location (${userLocation})`
+                      : location === 'Live Location' && isLocationLoading
+                      ? 'Getting your location...'
+                      : location}
+                  </Text>
+                  {selectedLocation === location && (
+                    <Ionicons name="checkmark" size={18} color="#3b82f6" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* Half-screen animation overlays */}
+      <Animated.View style={[styles.halfScreenOverlay, styles.leftHalfScreen, leftScreenAnimatedStyle]}>
+        <View style={styles.halfScreenContent}>
+          <Ionicons name="close-circle" size={80} color="#fff" />
+          <Text style={styles.halfScreenText}>REJECT</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.View style={[styles.halfScreenOverlay, styles.rightHalfScreen, rightScreenAnimatedStyle]}>
+        <View style={styles.halfScreenContent}>
+          <Ionicons name="checkmark-circle" size={80} color="#fff" />
+          <Text style={styles.halfScreenText}>ACCEPT</Text>
+        </View>
+      </Animated.View>
+
+      {/* Tutorial Overlay */}
+      {showOverlay && (
+        <TouchableOpacity 
+          activeOpacity={1} 
+          onPress={hideOverlay}
+          style={[styles.tutorialOverlay, overlayAnimatedStyle]}
+        >
+          <Animated.View style={[styles.tutorialHalfScreen, styles.leftTutorialHalf, leftTutorialAnimatedStyle]} />
+          <Animated.View style={[styles.tutorialHalfScreen, styles.rightTutorialHalf, rightTutorialAnimatedStyle]} />
+          
+          <View style={styles.tutorialContent}>
+            <Animated.View style={[styles.arrowContainer, styles.leftArrow, leftArrowAnimatedStyle]}>
+              <Ionicons name="close-circle" size={60} color="#fff" />
+              <Text style={styles.arrowLabel}>REJECT</Text>
+            </Animated.View>
+
+            <Animated.View style={[styles.arrowContainer, styles.rightArrow, rightArrowAnimatedStyle]}>
+              <Ionicons name="checkmark-circle" size={60} color="#fff" />
+              <Text style={styles.arrowLabel}>ACCEPT</Text>
+            </Animated.View>
+
+            <Animated.View style={[styles.instructionContainer, textAnimatedStyle]}>
+              <Text style={styles.instructionText}>Swipe right to accept • Swipe left to reject</Text>
+              <Text style={styles.instructionSubtext}>Tap to dismiss tutorial</Text>
+            </Animated.View>
+          </View>
+        </TouchableOpacity>
+      )}
+    </GestureHandlerRootView>
+  );
+}
+
+function JobSwipeCard({ 
+  job, 
+  onSwipeLeft, 
+  onSwipeRight, 
+  onBookmark, 
+  isTop, 
+  isSaved, 
+  onSwipeAnimation 
+}: JobSwipeCardProps & { onSwipeAnimation: (direction: 'left' | 'right') => void }) {
+  const translateX = useSharedValue(0);
+  const rotate = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  const gestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      scale.value = withSpring(0.98);
+    },
+    onActive: (event) => {
+      translateX.value = event.translationX;
+      rotate.value = interpolate(
+        event.translationX,
+        [-width, 0, width],
+        [-8, 0, 8],
+        Extrapolate.CLAMP
+      );
+
+      if (Math.abs(event.translationX) > SWIPE_THRESHOLD * 0.6) {
+        if (event.translationX > 0) {
+          runOnJS(onSwipeAnimation)('right');
+        } else {
+          runOnJS(onSwipeAnimation)('left');
+        }
+      }
+    },
+    onEnd: (event) => {
+      scale.value = withSpring(1);
+      
+      if (event.translationX > SWIPE_THRESHOLD) {
+        translateX.value = withTiming(width * 1.5, 
+          { duration: 300 }, 
+          (finished) => {
+            if (finished) {
+              runOnJS(onSwipeRight)();
+              translateX.value = 0;
+              rotate.value = 0;
+            }
+          }
+        );
+        rotate.value = withTiming(8, { duration: 300 });
+      } else if (event.translationX < -SWIPE_THRESHOLD) {
+        translateX.value = withTiming(-width * 1.5, 
+          { duration: 300 }, 
+          (finished) => {
+            if (finished) {
+              runOnJS(onSwipeLeft)();
+              translateX.value = 0;
+              rotate.value = 0;
+            }
+          }
+        );
+        rotate.value = withTiming(-8, { duration: 300 });
+      } else {
+        translateX.value = withSpring(0);
+        rotate.value = withSpring(0);
+      }
+    },
+  });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      Math.abs(translateX.value),
+      [0, SWIPE_THRESHOLD, width],
+      [1, 0.9, 0],
+      Extrapolate.CLAMP
+    );
+
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { rotate: `${rotate.value}deg` },
+        { scale: scale.value },
+      ],
+      opacity,
+    };
+  });
+
+  const likeOverlayStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      translateX.value,
+      [0, SWIPE_THRESHOLD],
+      [0, 1],
+      Extrapolate.CLAMP
+    );
+
+    return { opacity };
+  });
+
+  const rejectOverlayStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      translateX.value,
+      [-SWIPE_THRESHOLD, 0],
+      [1, 0],
+      Extrapolate.CLAMP
+    );
+
+    return { opacity };
+  });
+
+  return (
+    <PanGestureHandler onGestureEvent={gestureHandler}>
+      <Animated.View style={[styles.card, animatedStyle]}>
+        <JobCardContent job={job} />
+        
+        <Animated.View style={[styles.likeOverlay, likeOverlayStyle]}>
+          <View style={[styles.overlayContent, styles.likeOverlayContent]}>
+            <Ionicons name="heart" size={24} color="#22c55e" />
+            <Text style={[styles.overlayText, styles.likeOverlayText]}>LIKE</Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.rejectOverlay, rejectOverlayStyle]}>
+          <View style={[styles.overlayContent, styles.rejectOverlayContent]}>
+            <Ionicons name="close" size={24} color="#ef4444" />
+            <Text style={[styles.overlayText, styles.rejectOverlayText]}>PASS</Text>
+          </View>
+        </Animated.View>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={onSwipeLeft}
+          >
+            <Ionicons name="close" size={20} color="#ef4444" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.bookmarkButton, isSaved && styles.bookmarkButtonActive]}
+            onPress={onBookmark}
+          >
+            <Ionicons 
+              name={isSaved ? "bookmark" : "bookmark-outline"} 
+              size={16} 
+              color={isSaved ? "#3b82f6" : "#6b7280"} 
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionButton, styles.likeButton]}
+            onPress={onSwipeRight}
+          >
+            <Ionicons name="heart" size={20} color="#22c55e" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </PanGestureHandler>
+  );
+}
+
+function JobCardContent({ job }: { job: Job }) {
+  if (!job) {
+    return (
+      <View style={styles.cardContent}>
+        <Text style={styles.errorText}>Job data unavailable</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.cardContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.cardHeader}>
+        <View style={styles.logo}>
+          <Text style={styles.logoText}>{job.company?.charAt(0) || 'N'}</Text>
+        </View>
+        <View style={styles.companyInfo}>
+          <Text style={styles.company}>{job.company || 'Unknown Company'}</Text>
+          <Text style={styles.companySizeText}>{job.companySize || 'Company size not specified'}</Text>
+          <Text style={styles.experienceText}>{job.type || 'Full-time'} • {job.experience || 'Experience not specified'}</Text>
+        </View>
+        <View style={styles.matchBadge}>
+          <Text style={styles.matchText}>{job.matchPercentage || 0}%</Text>
+        </View>
+      </View>
+
+      <Text style={styles.title}>{job.title || 'Job Title Not Available'}</Text>
+
+      {/* Job Details Row */}
+      <View style={styles.jobDetails}>
+        <View style={styles.jobDetailItem}>
+          <Ionicons name="location-outline" size={14} color="#6b7280" />
+          <Text style={styles.jobDetailText}>{job.location || 'Location not specified'}</Text>
+        </View>
+        <View style={styles.jobDetailItem}>
+          <Ionicons name="cash-outline" size={14} color="#6b7280" />
+          <Text style={styles.jobDetailText}>{job.salary || 'Salary not specified'}</Text>
+        </View>
+        <View style={styles.jobDetailItem}>
+          <Ionicons name="time-outline" size={14} color="#6b7280" />
+          <Text style={styles.jobDetailText}>{job.postedTime || 'Recently posted'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About the Role</Text>
+        <Text style={styles.description}>{job.description || 'Job description not available at this time.'}</Text>
+      </View>
+
+      {job.requirements && job.requirements.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Requirements</Text>
+          {job.requirements.map((req, index) => (
+            <View key={index} style={styles.requirementItem}>
+              <Text style={styles.requirementBullet}>•</Text>
+              <Text style={styles.requirementText}>{req}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {job.tags && job.tags.length > 0 && (
+        <View style={styles.tags}>
+          {job.tags.map((tag, index) => (
+            <View key={index} style={styles.tag}>
+              <Text style={styles.tagText}>{tag}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      
+      <View style={{ height: 70 }} />
+    </ScrollView>
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#0f172a",
+    backgroundImage: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
   },
-  listContainer: {
-    padding: 16,
+  // Location selector positioned at top
+  locationContainer: {
+    position: 'absolute',
+    top: 45,
+    left: 20,
+    zIndex: 100,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  filtersRow: {
-    marginBottom: 16,
-  },
-  filterGroup: {
-    marginBottom: 12,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374751',
-    marginBottom: 8,
-  },
-  filterButtons: {
+  locationSelector: {
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  filterButton: {
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  activeFilterButton: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  filterButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  activeFilterButtonText: {
-    color: '#ffffff',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
+    borderColor: '#e5e7eb',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    maxWidth: 140,
   },
-  statItem: {
+  locationText: {
+    fontSize: 11,
+    color: '#4b5563',
+    fontWeight: '500',
+    marginHorizontal: 4,
+    flex: 1,
+  },
+  // Moved info to bottom, more space for cards
+  bottomInfo: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
     alignItems: 'center',
+    zIndex: 50,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
+  jobCount: {
+    fontSize: 11,
+    color: '#cbd5e1',
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#6b7280',
+  resetButton: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     marginTop: 4,
   },
-  applicationCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+  resetButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  // MODIFIED: Card container moved higher with adjusted top padding
+  cardContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 30, // Reduced from original padding since header is removed
+    paddingBottom: 90, // Space for bottom info
+  },
+  noJobsContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  noJobsEmoji: {
+    fontSize: 48,
     marginBottom: 12,
+  },
+  noJobsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1f2937",
+    marginBottom: 6,
+  },
+  noJobsSubtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  primaryButton: {
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  primaryButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  // Card size optimized for better content display
+  card: {
+    width: width * 0.88,
+    height: height * 0.75,
+    maxWidth: 380,
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 15,
+    position: "absolute",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  backgroundCard: {
+    transform: [{ scale: 0.94 }],
+    opacity: 0.3,
+    zIndex: 0,
+  },
+  // Optimized content padding
+  cardContent: {
+    flex: 1,
+    padding: 18,
+  },
+  likeOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+  },
+  rejectOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+  },
+  overlayContent: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: "center",
+    gap: 6,
+  },
+  likeOverlayContent: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderColor: '#22c55e',
+  },
+  rejectOverlayContent: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderColor: '#ef4444',
+  },
+  overlayText: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  likeOverlayText: {
+    color: '#22c55e',
+  },
+  rejectOverlayText: {
+    color: '#ef4444',
+  },
+  // Reduced font sizes and spacing
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  logo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#dbeafe",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  logoText: {
+    fontWeight: "800",
+    fontSize: 18,
+    color: "#1e3a8a",
   },
   companyInfo: {
     flex: 1,
   },
-  companyName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  positionTitle: {
+  company: {
+    fontWeight: "600",
     fontSize: 14,
-    color: '#6b7280',
+    color: "#1f2937",
+    marginBottom: 2,
   },
-  typeAndStatus: {
-    alignItems: 'flex-end',
-    gap: 4,
+  companySizeText: {
+    fontSize: 11,
+    color: "#6b7280",
+    fontWeight: "500",
+    marginBottom: 2,
   },
-  typeBadge: {
+  experienceText: {
+    fontSize: 11,
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+  matchBadge: {
+    backgroundColor: "#ecfdf5",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#22c55e",
   },
-  typeText: {
-    fontSize: 10,
-    fontWeight: '600',
+  matchText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#22c55e",
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  keywordRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  title: {
+    fontSize: 20,
+    fontWeight: "800",
     marginBottom: 12,
-    paddingVertical: 8,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    color: "#1f2937",
+    lineHeight: 26,
   },
-  matchPercentage: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Job details row styles
+  jobDetails: {
+    marginBottom: 16,
     gap: 8,
   },
-  matchLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374751',
-  },
-  matchValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  keywordCount: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  detailsRow: {
+  jobDetailItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 6,
+  },
+  jobDetailText: {
+    fontSize: 13,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1f2937",
     marginBottom: 8,
   },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  description: {
+    fontSize: 13,
+    color: "#4b5563",
+    lineHeight: 19,
   },
-  locationText: {
-    fontSize: 12,
-    color: '#6b7280',
+  requirementItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
   },
-  dateText: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  platformRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  platformText: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontStyle: 'italic',
-  },
-  salaryText: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '500',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  trackButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#dbeafe',
-    borderRadius: 8,
-  },
-  trackButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#2563eb',
-  },
-  viewButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#d1fae5',
-    borderRadius: 8,
-  },
-  viewButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#059669',
-  },
-  keywordsPreview: {
-    marginTop: 8,
-  },
-  keywordsLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#374751',
-    marginBottom: 4,
-  },
-  keywordsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    alignItems: 'center',
-  },
-  keywordTag: {
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  keywordText: {
-    fontSize: 10,
-    color: '#065f46',
-    fontWeight: '500',
-  },
-  moreKeywords: {
-    fontSize: 10,
-    color: '#6b7280',
-    fontStyle: 'italic',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyStateText: {
+  requirementBullet: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    color: "#3b82f6",
+    marginRight: 8,
+    marginTop: 1,
+  },
+  requirementText: {
+    fontSize: 12,
+    color: "#4b5563",
+    lineHeight: 18,
+    flex: 1,
+  },
+  tags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  tag: {
+    backgroundColor: "#e0e7ff",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginRight: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  tagText: {
+    fontSize: 10,
+    color: "#3730a3",
+    fontWeight: "600",
+  },
+  // Reduced action button sizes
+  actions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+  },
+  actionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  rejectButton: {
+    backgroundColor: "#fee2e2",
+    borderWidth: 1.5,
+    borderColor: "#fecaca",
+  },
+  bookmarkButton: {
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+  },
+  bookmarkButtonActive: {
+    backgroundColor: "#dbeafe",
+    borderColor: "#93c5fd",
+  },
+  likeButton: {
+    backgroundColor: "#dcfce7",
+    borderWidth: 1.5,
+    borderColor: "#bbf7d0",
+  },
+  // Loading and error states
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#cbd5e1",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  loadingSpinner: {
+    padding: 12,
+  },
+  loadingEmoji: {
+    fontSize: 28,
+  },
+  errorContainer: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 11,
+    color: "#dc2626",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#3b82f6",
+  },
+  retryButtonText: {
+    color: "#3b82f6",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  // Modal styles
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  locationModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: width * 0.85,
+    maxHeight: height * 0.6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  locationList: {
+    maxHeight: height * 0.4,
+  },
+  locationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f9fafb',
+  },
+  selectedLocationItem: {
+    backgroundColor: '#f0f9ff',
+  },
+  locationItemText: {
+    fontSize: 14,
+    color: '#4b5563',
+    marginLeft: 10,
+    flex: 1,
+    fontWeight: '500',
+  },
+  selectedLocationText: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  loadingLocationItem: {
+    opacity: 0.6,
+  },
+  loadingLocationText: {
+    fontStyle: 'italic',
+    color: '#9ca3af',
+  },
+  // Half-screen animation styles
+  halfScreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+    pointerEvents: 'none',
+  },
+  leftHalfScreen: {
+    left: 0,
+    width: width / 2,
+    backgroundColor: '#ef4444',
+  },
+  rightHalfScreen: {
+    right: 0,
+    width: width / 2,
+    backgroundColor: '#22c55e',
+  },
+  halfScreenContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  halfScreenText: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 12,
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  // Tutorial Overlay Styles
+  tutorialOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  tutorialContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    width: '100%',
+    height: '100%',
+  },
+  tutorialHalfScreen: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: width / 2,
+    zIndex: 1,
+  },
+  leftTutorialHalf: {
+    left: 0,
+    backgroundColor: '#ef4444',
+  },
+  rightTutorialHalf: {
+    right: 0,
+    backgroundColor: '#22c55e',
+  },
+  arrowContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  leftArrow: {
+    left: width * 0.15,
+    top: '42%',
+  },
+  rightArrow: {
+    right: width * 0.15,
+    top: '42%',
+  },
+  arrowLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 8,
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  instructionContainer: {
+    position: 'absolute',
+    bottom: height * 0.25,
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    zIndex: 2,
+  },
+  instructionText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  instructionSubtext: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 6,
+    letterSpacing: 0.4,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
 });

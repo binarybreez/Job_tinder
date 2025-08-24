@@ -1,26 +1,36 @@
-import { Tabs } from "expo-router";
-import { AntDesign, Feather, Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@clerk/clerk-expo";
+import { AntDesign, Feather, Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
 
 const SeekerLayout = () => {
   const { signOut } = useAuth();
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "black",
+        tabBarActiveTintColor: "#4A90E2", // Blue color for active tabs
+        tabBarInactiveTintColor: "#6B7280", // Darker gray color for inactive tabs
         tabBarStyle: {
           position: "absolute",
-          bottom: 8, // ⬆️ moves tab bar up from bottom
+          bottom:0, // moves tab bar up from bottom
           left: 16,
           right: 16,
           borderRadius: 16,
           height: 70,
-          backgroundColor: "#fff",
+          backgroundColor: "#1A1A1A", // Much darker background color
           elevation: 5, // shadow for Android
           shadowColor: "#000", // shadow for iOS
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.5,
           shadowOffset: { width: 0, height: 5 },
           shadowRadius: 10,
+          borderWidth: 0,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "500",
+          marginBottom: 8,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 8,
         },
       }}
     >
@@ -30,8 +40,12 @@ const SeekerLayout = () => {
           headerTitle: "Hinge",
           title: "Home",
           headerTintColor: "#FF5700",
-          tabBarIcon: ({ color }) => (
-            <AntDesign name="home" size={24} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <AntDesign 
+              name="home" 
+              size={24} 
+              color={focused ? "#4A90E2" : "#6B7280"} 
+            />
           ),
           headerRight: () => (
             <Feather
@@ -46,11 +60,35 @@ const SeekerLayout = () => {
       <Tabs.Screen
         name="SeekerJobs"
         options={{
-          headerShown: false,
-
-          title: "Explore",
-          tabBarIcon: ({ color }) => (
-            <AntDesign name="plus" size={24} color={color} />
+          headerShown: true,
+          headerTitle: "Industrial Jobs",
+          headerStyle: {
+            backgroundColor: "#2C3E50", // Dark blue-gray header background to match image
+            elevation: 0,
+            shadowOpacity: 0,
+            borderBottomWidth: 0,
+          },
+          headerTintColor: "#FFFFFF", // White text
+          headerTitleStyle: {
+            fontSize: 18,
+            fontWeight: "600",
+            color: "#FFFFFF",
+          },
+          title: "Jobs",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name="briefcase-outline" 
+              size={24} 
+              color={focused ? "#4A90E2" : "#6B7280"} 
+            />
+          ),
+          headerRight: () => (
+            <Ionicons
+              name="share-outline"
+              size={22}
+              color="#FFFFFF"
+              style={{ marginRight: 16 }}
+            />
           ),
         }}
       />
@@ -58,13 +96,12 @@ const SeekerLayout = () => {
         name="SavedJobs"
         options={{
           headerShown: false,
-
           title: "Saved",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name="chatbubble-ellipses-outline"
+              name="bookmark-outline"
               size={24}
-              color={color}
+              color={focused ? "#4A90E2" : "#6B7280"}
             />
           ),
         }}
@@ -73,10 +110,13 @@ const SeekerLayout = () => {
         name="SeekerProfile"
         options={{
           headerShown: false,
-
           title: "Profile",
-          tabBarIcon: ({ color }) => (
-            <Feather name="users" size={24} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons 
+              name="person-outline" 
+              size={24} 
+              color={focused ? "#4A90E2" : "#6B7280"} 
+            />
           ),
         }}
       />
